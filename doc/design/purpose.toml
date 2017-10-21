@@ -1,0 +1,135 @@
+# project purpose and definition documentation
+
+[REQ-purpose]
+text = '''
+The purpose of this project is to provide a framework for metrics.
+
+The main categories are:
+ * infrastructure
+ * workflow
+
+It is important that the data gatherer and data analyzer is separated.
+The data should be stored in an open format that is easy to analyse.
+Easy to use by other programs.
+'''
+
+[REQ-infrastructure]
+partof = 'REQ-purpose'
+text = '''
+Metrics of the infrastructure.
+
+The metrics should focus on:
+ * performance
+ * resource usage
+'''
+
+[REQ-workflow]
+partof = 'REQ-purpose'
+text = '''
+Metrics of workflow.
+
+The metrics should focus on:
+ * completed runs of the defined workflow (throughput)
+ * the complete time for finishing a workflow (delay)
+ * time spent for workunits
+
+A workunit is the smallest part that is measured in a workflow.
+'''
+
+[REQ-data_gather_frequency]
+partof = 'REQ-purpose'
+text = '''
+The gather of data should be frequently ran.
+
+I think it is important that different suites of tests can be ran with
+different frequencies. Heavy probably less often than those that are easy to
+test.
+
+It is PROBABLY important that those tests that test a shared resource do NOT
+run in parallell from many servers.
+'''
+
+[REQ-infrastructure-resource_usage]
+partof = 'REQ-infrastructure'
+text = '''
+This group of metrics shall capture the health of the infrastructure.
+
+The infrastructure is the hardware and network.
+
+It is important that the measurment is both in absolut numbers and in
+percentage.
+
+This kind of metric are:
+ * memory usage
+ * cpu usage
+ * users in the system that uses most resources
+ * programs that uses the most resources
+ * I/O. such as disc, network
+ * unix load average
+'''
+
+[SPC-infrastructure_memory]
+partof = 'REQ-infrastructure-resource_usage'
+text = '''
+What should be measured when it comes to memory?
+
+Total available memory?
+Used? Free?
+'''
+
+[SPC-infrastructure_program]
+partof = 'REQ-infrastructure-resource_usage'
+text = '''
+Gather statistics for the top 100 programs that are currently running on the server.
+
+Consider if the usage should be of the totally available.
+This one is a bit hard because the value may need to be normalized in some way to account for differences between servers.
+What I'm trying to say is that an absolute number would be very misleading.
+
+Statistics:
+ * memory used
+ * cpu used
+ * user
+ * server
+'''
+
+[SPC-infrastructure_io]
+partof = 'REQ-infrastructure-resource_usage'
+text = '''
+Gather statistics about I/O performance.
+'''
+
+[SPC-infrastructure_io-listdir]
+partof = 'SPC-infrastructure_io'
+text = '''
+Gather statistics for listing a directory.
+
+Maybe this should test both the cold and warm listing?
+How can it be assured it is cold?
+'''
+
+[REQ-parallell_test_host_execution]
+partof = 'REQ-purpose'
+text = '''
+Running the tests on remote hosts should be done in parallell to keep down the
+total runtime of the test suite.
+'''
+
+[SPC-parallell_test_host_execution]
+partof = 'REQ-parallell_test_host_execution'
+text = '''
+To keep the design simple to begin with the test results are stored in a local
+file that are retrieve by the master node.
+
+Pseud-code:
+# one time
+mktmp results_XXXXX
+
+# loop over test hosts
+ssh host mkdir /tmp/<random>
+scp metric_factory host:/tmp/<random>
+ssh host:/tmp/<random>/metric_factory --run
+scp host:/tmp/<random>/result.dat results_XXXXX
+
+# summarise the results
+'''

@@ -1,0 +1,295 @@
+[SPC-concept]
+text = '''
+To make the design clear in MetricFactory the following concepts are introduced
+(from StatsD).
+
+TODO this needs to be broken down.
+
+See https://github.com/etsy/statsd/blob/master/docs/metric_types.md
+'''
+
+[SPC-concept-buckets]
+partof = 'SPC-concept'
+text = '''
+In StatsD, whether it’s a counter, a timing, or a gauge, each metric is placed
+in a bucket. A bucket is just a representative name for a metric that acts as
+the key used to store it.
+
+When using the statsd Librato backend, each bucket is used as the metric name
+when that bucket is submitted to Librato Metrics.
+
+Therefore, users should ensure that buckets follow the same naming conventions
+for Librato Metrics metric names and users should not use the same name for a
+counter and a gauge, for example.
+'''
+
+[SPC-concept-values]
+partof = 'SPC-concept'
+text = '''
+Each stat will have a value. How it is interpreted depends on modifiers. In
+general values should be integer.
+'''
+
+[SPC-concept-flush_interval]
+partof = 'SPC-concept'
+text = '''
+After the flush interval timeout (default 10 seconds), stats are aggregated and
+sent to an upstream backend service.
+'''
+
+[SPC-concept-counters]
+partof = 'SPC-concept'
+text = '''
+Counters count the number of times an event occurs.
+
+You might count every time a user signs in, every time an application
+controller is invoked, or number of elements received in POST requests.
+
+Using a statsd client you simply invoke the increment operation each time you
+want to count something.
+
+You can specify an integer increment value, or let it default to one, and the
+client will send that increment to the statsd daemon over UDP. Multiple
+entities (processes or servers) can increment a single counter and the statsd
+daemon will update the total count of the counter bucket.
+
+On each flush interval statsd will push the current value of each counter to
+the upstream metrics service.
+
+## Sample Rate
+One thing we found early on is that if we want to track something that happens
+really, really frequently, we can start to overwhelm StatsD with UDP packets.
+To cope with that, we added the option to sample data, i.e. to only send
+packets a certain percentage of the time. For very frequent events, this still
+gives you a statistically accurate view of activity.
+
+To record only one in ten events:
+
+StatsD::increment(“adventurer.heartbeat”, 0.1);
+
+What’s important here is that the packet sent to StatsD includes the sample
+rate, and so StatsD then multiplies the numbers to give an estimate of a 100%
+sample rate before it sends the data on to graphite. This means we can adjust
+the sample rate at will without having to deal with rescaling the y-axis of the
+resulting graph.
+
+## From StatsD implementation
+
+First, StatsD iterates over any counters received, where it starts by assigning
+two variables. One variable holds the counter value, and one variable holds the
+per-second value. It then adds the values to the statString and increases the
+numStats variable.
+
+It is affected by the flush interval.
+Example:
+If you have the default flush interval, 10 seconds, and send StatsD 7
+increments on a counter with the flush interval, the counter would be 7 and the
+per-second value would be 0.7. No magic.
+
+StatsD:
+for (key in counters) {
+  var value = counters[key];
+  var valuePerSecond = value / (flushInterval / 1000); // calculate "per second" rate
+
+  statString += 'stats.'        + key + ' ' + valuePerSecond + ' ' + ts + "\n";
+  statString += 'stats_counts.' + key + ' ' + value          + ' ' + ts + "\n";
+
+  numStats += 1;
+}
+'''
+
+[SPC-concept-gauges]
+partof = 'SPC-concept'
+text = '''
+Gauges are single metric readings that are recorded and published to the
+upstream service.
+
+They are different from timings in that only the last gauge reading in a single
+flush interval is sent to the upstream service. This can be useful if you want
+to track the current temperature or the current price of a stock where only the
+most recent version is required in a given flush interval.
+
+However, for anything that is request driven – requiring measuring samples on
+each request – the timing interface is preferable.
+
+## From StatsD implementation
+
+for (key in gauges) {
+  statString += 'stats.gauges.' + key + ' ' + gauges[key] + ' ' + ts + "\n";
+  numStats += 1;
+}
+
+Feed StatsD a number and it sends it unprocessed to the backend. A thing to
+note is that only the last value of a gauge during a flush interval is flushed
+to the backend. That means that if you send the following gauge values to
+StatsD during a flush interval
+
+    643
+    754
+    583
+
+The only value that gets flushed to the backend is 583. The value of this gauge
+will be kept in memory in StatsD and be sent to the backend at the end of every
+flush interval.
+'''
+
+[SPC-concept-timers]
+partof = 'SPC-concept'
+text = '''
+Timers are sampling of particulare metrics multiple times over a sampling time.
+
+Oftentimes you’ll want to record a sampling of a particular metric multiple
+times and track the average rate of those samplings over time. For example, you
+might track average response time to your web application by sampling how long
+each request takes.
+
+StatsD supports this type of sampling with the timing interface.
+
+While it is commonly used for tracking values that are actual times (e.g.,
+nginx response time), it can also be used to sample any type of value, e.g. the
+byte size of every nginx response. Statsd clients send each sampled value to
+the statsd daemon.
+
+Statsd also supports the capability to calculate an arbitrary number of
+percentiles for timing buckets. By default, the 90th percentile is
+automatically calculated for each timing bucket, but the user can override that
+with one or more percentile thresholds.
+
+## From StatsD implementation
+
+for (key in timers) {
+  if (timers[key].length > 0) {
+    var values = timers[key].sort(function (a,b) { return a-b; });
+    var count = values.length;
+    var min = values[0];
+    var max = values[count - 1];
+
+    var cumulativeValues = [min];
+    for (var i = 1; i < count; i++) {
+        cumulativeValues.push(values[i] + cumulativeValues[i-1]);
+    }
+
+    var sum = min;
+    var mean = min;
+    var maxAtThreshold = max;
+
+    var message = "";
+
+    var key2;
+
+    for (key2 in pctThreshold) {
+      var pct = pctThreshold[key2];
+      if (count > 1) {
+        var thresholdIndex = Math.round(((100 - pct) / 100) * count);
+        var numInThreshold = count - thresholdIndex;
+
+        maxAtThreshold = values[numInThreshold - 1];
+        sum = cumulativeValues[numInThreshold - 1];
+        mean = sum / numInThreshold;
+      }
+
+      var clean_pct = '' + pct;
+      clean_pct.replace('.', '_');
+      message += 'stats.timers.' + key + '.mean_'  + clean_pct + ' ' + mean           + ' ' + ts + "\n";
+      message += 'stats.timers.' + key + '.upper_' + clean_pct + ' ' + maxAtThreshold + ' ' + ts + "\n";
+      message += 'stats.timers.' + key + '.sum_' + clean_pct + ' ' + sum + ' ' + ts + "\n";
+    }
+
+    sum = cumulativeValues[count-1];
+    mean = sum / count;
+
+    message += 'stats.timers.' + key + '.upper ' + max   + ' ' + ts + "\n";
+    message += 'stats.timers.' + key + '.lower ' + min   + ' ' + ts + "\n";
+    message += 'stats.timers.' + key + '.count ' + count + ' ' + ts + "\n";
+    message += 'stats.timers.' + key + '.sum ' + sum  + ' ' + ts + "\n";
+    message += 'stats.timers.' + key + '.mean ' + mean + ' ' + ts + "\n";
+    statString += message;
+
+    numStats += 1;
+  }
+}
+
+StatsD iterates over each timer and processes the timer if the value is above
+0. It then sorts the array of values and simply counts it and locates the
+minimum and maximum values. An array of the cumulative values is created and a
+few variables are assigned before it starts to iterate over the percentile
+thresholds array to calculate percentiles and creates the messages to assign to
+the statString variable. When percentile calculation is done, the final sum
+gets assigned and the final statString is created.
+
+If you send the following timer values to StatsD during the default flush
+interval
+
+    450
+    120
+    553
+    994
+    334
+    844
+    675
+    496
+
+StatsD will calculate the following values
+
+    mean_90 496
+    upper_90 844
+    sum_90 3472
+    upper 994
+    lower 120
+    count 8
+    sum 4466
+    mean 558.25
+'''
+
+[SPC-concept-sets]
+partof = 'SPC-concept'
+text = '''
+Sets track the number of unique elements belonging to a group.
+
+This could be used to track the number of unique visitors to your site at any
+point in time.
+
+At each flush interval, the Librato statsd backend will push the number of
+unique elements in the set as a single gauge value.
+
+Be aware that if you are tracking the same set across multiple statsd servers,
+there is no guarantee of uniqueness across the individual statsd servers.
+'''
+
+[SPC-graphite]
+partof = 'SPC-concept'
+text = '''
+Copied from
+http://graphite.readthedocs.io/en/latest/overview.html#what-graphite-is-and-is-not
+
+What Graphite is and is not
+
+Graphite does two things:
+
+    Store numeric time-series data
+    Render graphs of this data on demand
+
+What Graphite does not do is collect data for you, however there are some tools
+out there that know how to send data to graphite. Even though it often requires
+a little code, sending data to Graphite is very simple.
+'''
+
+[SPC-memory_usage_of_process]
+text = '''
+It may be useful to be able to gather memory usage statistics when launching a process.
+See https://github.com/klickverbot/process-stats/blob/master/source/process_stats.d
+'''
+
+[SPC-plotting]
+text = '''
+If it is desired to generate plots standalone from graphite this lib may be useful.
+
+See https://github.com/deviator/plot2d
+'''
+
+[SPC-serialiser]
+text = '''
+To serialise/deserialise D data types this may be useful.
+
+See https://github.com/atilaneves/cerealed
+'''
