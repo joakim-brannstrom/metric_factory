@@ -3,3 +3,9 @@ description "A tool to gather metrics of infrastructure and workflow"
 authors "Joakim Brännström"
 copyright "Copyright © 2017, Joakim Brännström"
 license "BSL-1.0"
+
+dependency "metric_factory:scriptlike" version="*"
+
+subPackage "./scriptlike/"
+
+targetPath "build"
