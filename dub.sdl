@@ -9,3 +9,5 @@ dependency "metric_factory:scriptlike" version="*"
 subPackage "./scriptlike/"
 
 targetPath "build"
+
+sourcePaths "source" "plugin_src" "user_plugin_src"
