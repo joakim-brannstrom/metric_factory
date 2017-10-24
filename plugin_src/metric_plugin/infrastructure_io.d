@@ -22,8 +22,8 @@ shared static this() {
     registerPlugin(Plugin("List files in current directory", (coll) {
             simpleListdir(coll, DirPath("."));
         }));
-    registerPlugin(Plugin("Create and remove 10k small files", (coll) {
-            testSmallFilePerformance(coll, DirPath("."));
+    registerPlugin(Plugin("Create and remove 10 small files", (coll) {
+            testSmallFilePerformance(coll, DirPath("."), 10);
         }));
 }
 
@@ -49,7 +49,7 @@ void simpleListdir(Collector coll, DirPath root) nothrow {
  *
  * #SPC-infrastructure_io-smallfile_perf
  */
-void testSmallFilePerformance(Collector coll, DirPath root) nothrow {
+void testSmallFilePerformance(Collector coll, const DirPath root, const long files_to_create) nothrow {
     auto wa = WorkArea(root);
     if (!wa.isValid)
         return;
@@ -58,7 +58,7 @@ void testSmallFilePerformance(Collector coll, DirPath root) nothrow {
 
     try {
         auto sw = StopWatch(AutoStart.yes);
-        foreach (i; 0 .. 10_000) {
+        foreach (i; 0 .. files_to_create) {
             auto fout = File(buildPath(rnd_testdir, i.to!string), "w");
             iota(0, 10_000).each!(a => fout.write(a));
         }
