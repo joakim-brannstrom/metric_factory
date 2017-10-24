@@ -113,6 +113,53 @@ void nothrowTryRmdirRecursive(DirPath p) nothrow {
     }
 }
 
+struct WorkArea {
+    import std.datetime : StopWatch;
+    import std.path : buildPath;
+    import std.random : uniform;
+    import std.conv : to;
+
+    const DirPath root;
+
+    @disable this(this);
+
+    this(DirPath root) nothrow {
+        import std.file : mkdir;
+
+        try {
+            auto rnd_testdir = buildPath(root, "metric_factory_" ~ uniform(0,
+                    2_000_000_000).to!string).DirPath;
+            mkdir(rnd_testdir);
+            this.root = rnd_testdir;
+        }
+        catch (Exception e) {
+            collectException(logger.error(e.msg));
+        }
+    }
+
+    ~this() nothrow {
+        if (isValid) {
+            // this is to be on the safe side
+            nothrowTryRmdirRecursive(root);
+        }
+    }
+
+    bool isValid() nothrow {
+        return root.length != 0;
+    }
+
+    StopWatch cleanup() {
+        StopWatch sw;
+        if (isValid) {
+            sw.start;
+            nothrowTryRmdirRecursive(root);
+            sw.stop;
+        }
+
+        return sw;
+    }
+}
+
 private:
 
 shared Appender!(Plugin[]) registered_plugins;
