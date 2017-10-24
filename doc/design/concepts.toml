@@ -6,11 +6,8 @@ To make the design clear in MetricFactory the following concepts are introduced
 TODO this needs to be broken down.
 
 See https://github.com/etsy/statsd/blob/master/docs/metric_types.md
-'''
 
-[SPC-concept-buckets]
-partof = 'SPC-concept'
-text = '''
+## Bucket
 In StatsD, whether it’s a counter, a timing, or a gauge, each metric is placed
 in a bucket. A bucket is just a representative name for a metric that acts as
 the key used to store it.
@@ -21,18 +18,12 @@ when that bucket is submitted to Librato Metrics.
 Therefore, users should ensure that buckets follow the same naming conventions
 for Librato Metrics metric names and users should not use the same name for a
 counter and a gauge, for example.
-'''
 
-[SPC-concept-values]
-partof = 'SPC-concept'
-text = '''
+## Value
 Each stat will have a value. How it is interpreted depends on modifiers. In
 general values should be integer.
-'''
 
-[SPC-concept-flush_interval]
-partof = 'SPC-concept'
-text = '''
+## Flush Interval
 After the flush interval timeout (default 10 seconds), stats are aggregated and
 sent to an upstream backend service.
 '''

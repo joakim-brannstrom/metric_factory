@@ -108,6 +108,14 @@ Maybe this should test both the cold and warm listing?
 How can it be assured it is cold?
 '''
 
+[SPC-infrastructure_io-smallfile_perf]
+partof = 'SPC-infrastructure_io'
+text = '''
+Gather statistics of the filesystem performance by creating and remove 10k files.
+
+The intention is to simulate "make all" and "make clean".
+'''
+
 [REQ-parallell_test_host_execution]
 partof = 'REQ-purpose'
 text = '''
