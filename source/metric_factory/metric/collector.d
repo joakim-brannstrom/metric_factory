@@ -149,20 +149,19 @@ ProcessResult process(Collector coll) {
     return res;
 }
 
+// TODO maybe change to "serialiser"?
 void writeCollection(Writer)(Collector coll, scope Writer w) {
-    import std.ascii : newline;
     import std.format : formattedWrite;
-    import std.range.primitives : put;
     import metric_factory.csv;
 
     // TODO fix code duplication
 
     foreach (kv; coll.timers.byKeyValue) {
-        formattedWrite(w, "%(%s\n%)", kv.value.data);
+        formattedWrite(w, "%(%s\n%)\n", kv.value.data);
     }
 
     foreach (kv; coll.counters.byKeyValue) {
-        formattedWrite(w, "%(%s\n%)", kv.value.data);
+        formattedWrite(w, "%(%s\n%)\n", kv.value.data);
     }
 
     foreach (kv; coll.gauges.byKeyValue) {
@@ -171,6 +170,107 @@ void writeCollection(Writer)(Collector coll, scope Writer w) {
 
     foreach (kv; coll.sets.byKeyValue) {
         formattedWrite(w, "%s\n", Set(kv.key, Set.Value(kv.value.countUnique)));
+    }
+}
+
+/** Deserialise a line.
+ *
+ * Params:
+ *  line =
+ *  coll = collector to store the results in
+ */
+void deserialise(const(char)[] line, Collector coll) nothrow {
+    import std.exception : Exception, collectException;
+    import std.format : formattedRead;
+    import std.algorithm;
+
+    static bool tryParseCounter(Collector coll, string rest, BucketName name) nothrow {
+        long value;
+        double sample_r;
+
+        try {
+            if (formattedRead(rest, "%s|c|@%f", value, sample_r) == 2) {
+                coll.put(Counter(name, Counter.Change(value), Counter.SampleRate(sample_r)));
+                return true;
+            }
+        }
+        catch(Exception e) {
+        }
+
+        try {
+            if (formattedRead(rest, "%s|c", value) == 1) {
+                coll.put(Counter(name, Counter.Change(value)));
+                return true;
+            }
+        }
+        catch(Exception e) {
+        }
+
+        return false;
+    }
+
+    static bool tryParseTimer(Collector coll, string rest, BucketName name) nothrow {
+        import core.time : dur;
+        long ms;
+
+        try {
+            if (formattedRead(rest, "%s|ms", ms) == 1) {
+                coll.put(Timer(name, Timer.Value(ms.dur!"msecs")));
+                return true;
+            }
+        }
+        catch(Exception e) {
+        }
+
+        return false;
+    }
+
+    static bool tryParseGauge(Collector coll, string rest, BucketName name) nothrow {
+        long value;
+
+        try {
+            if (formattedRead(rest, "%s|g", value) == 1) {
+                coll.put(Gauge(name, Gauge.Value(value)));
+                return true;
+            }
+        }
+        catch(Exception e) {
+        }
+
+        return false;
+    }
+
+    static bool tryParseSet(Collector coll, string rest, BucketName name) nothrow {
+        ulong value;
+
+        try {
+            if (formattedRead(rest, "%s|s", value) != 0) {
+                coll.put(Set(name, Set.Value(value)));
+                return true;
+            }
+        }
+        catch(Exception e) {
+        }
+
+        return false;
+    }
+
+    try {
+        BucketName name;
+        string rest;
+
+        if (formattedRead(line, "%s:%s", name.payload, rest) != 2) {
+            // invalid entry, skipping
+        } else if (tryParseCounter(coll, rest, name)) {
+        } else if (tryParseTimer(coll, rest, name)) {
+        } else if (tryParseGauge(coll, rest, name)) {
+        } else if (tryParseSet(coll, rest, name)) {
+        } else {
+            debug logger.trace("Unable to parse: ", rest);
+        }
+    }
+    catch(Exception e) {
+        debug collectException(logger.trace(e.msg));
     }
 }
 

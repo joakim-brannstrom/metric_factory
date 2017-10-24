@@ -91,7 +91,7 @@ struct Gauge {
     import std.format : FormatSpec;
 
     struct Value {
-        ulong payload;
+        long payload;
         alias payload this;
     }
 

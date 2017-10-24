@@ -160,6 +160,11 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
             runCmd(["scp", "-B", this_bin, format("%s:%s", host, rnd_hostbin)]);
             runCmd(["ssh", host, rnd_hostbin, "--run", "remote", "--output", rnd_hostresult]);
             runCmd(["scp", "-B", format("%s:%s", host, rnd_hostresult), retrieved_result]);
+
+            auto fin = File(retrieved_result);
+            foreach (l; fin.byLine) {
+                deserialise(l, coll);
+            }
         }
         catch (Exception e) {
             collectException(logger.error(e.msg));
@@ -214,7 +219,7 @@ void writeResult(Writer)(ProcessResult res, scope Writer w) {
     import metric_factory.csv;
 
     foreach (kv; res.timers.byKeyValue) {
-        writeCSV(w, kv.key, kv.value.min, kv.value.max, kv.value.sum, kv.value.mean);
+        writeCSV(w, kv.key, kv.value.min.total!"msecs", kv.value.max.total!"msecs", kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
     }
 
     foreach (kv; res.counters.byKeyValue) {
