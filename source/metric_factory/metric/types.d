@@ -121,6 +121,7 @@ struct Gauge {
 /// #SPC-concept-timers
 struct Timer {
     import std.format : FormatSpec;
+    import std.datetime : StopWatch;
 
     // How long a certain task took to complete.
     struct Value {
@@ -152,6 +153,12 @@ struct Timer {
         import std.format : formattedWrite;
 
         formattedWrite(w, "%s:%s|ms", name_, value_.total!"msecs");
+    }
+
+    static Timer from(ref StopWatch sw, string name) {
+        import std.conv : to;
+
+        return Timer(BucketName(name), Timer.Value(sw.peek.to!Duration));
     }
 }
 
