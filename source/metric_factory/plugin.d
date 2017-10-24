@@ -7,6 +7,10 @@ module metric_factory.plugin;
 
 public import metric_factory.metric;
 import std.array : Appender;
+import std.exception : collectException;
+import logger = std.experimental.logger;
+
+import metric_factory.types : Path, DirPath;
 
 alias MetricFunc = void function(Collector) nothrow;
 
@@ -27,6 +31,86 @@ size_t registeredPlugins() nothrow @nogc {
 
 Plugin[] getPlugins() nothrow {
     return (cast(Appender!(Plugin[])) registered_plugins).data;
+}
+
+struct ShellScriptResult {
+    Duration script;
+    Duration cleanup;
+}
+
+/** Run a shell script in a unique directory with cleanup.
+ *
+ * Params:
+ *  root = directory to create the unique directory in to run the script in.
+ *  shell = shell to run as
+ *  script = the raw script data
+ */
+ShellScriptResult runShellScript(DirPath root, string shell, string script) nothrow {
+    import std.conv : to;
+    import std.datetime : StopWatch, Duration, AutoStart;
+    import std.file : mkdir, getcwd, chdir;
+    import std.format : format;
+    import std.path : buildPath;
+    import std.random : uniform;
+    import std.stdio : File;
+
+    static import scriptlike;
+
+    ShellScriptResult rval;
+
+    DirPath rnd_testdir;
+    try {
+        rnd_testdir = buildPath(root, uniform(0, 2_000_000_000).to!string).DirPath;
+    }
+    catch (Exception e) {
+        collectException(logger.error(e.msg));
+        return rval;
+    }
+
+    // this is to be on the safe side
+    scope (exit)
+        nothrowTryRmdirRecursive(rnd_testdir);
+
+    try {
+        auto orig_wd = getcwd();
+        mkdir(rnd_testdir);
+        chdir(rnd_testdir);
+        scope (exit)
+            chdir(orig_wd);
+
+        auto testscript_file = format("metric_factory_%s", uniform(0, 2_000_000_000));
+        File(testscript_file, "w").write(script);
+
+        auto sw = StopWatch(AutoStart.yes);
+        auto res = scriptlike.runCollect(format("%s %s", shell, testscript_file));
+        debug logger.trace(res);
+        sw.stop;
+        rval.script = sw.peek.to!Duration;
+    }
+    catch (Exception e) {
+        collectException(logger.warning(e.msg));
+    }
+
+    try {
+        auto sw = StopWatch(AutoStart.yes);
+        scriptlike.tryRmdirRecurse(cast(string) rnd_testdir);
+        sw.stop;
+        rval.cleanup = sw.peek.to!Duration;
+    }
+    catch (Exception e) {
+    }
+
+    return rval;
+}
+
+void nothrowTryRmdirRecursive(DirPath p) nothrow {
+    import scriptlike;
+
+    try {
+        tryRmdirRecurse(cast(string) p);
+    }
+    catch (Exception e) {
+    }
 }
 
 private:
