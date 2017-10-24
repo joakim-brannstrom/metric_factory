@@ -156,7 +156,7 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
             const retrieved_result = buildPath(result_dir, format("%s_%s",
                     host, uniform(1, 2_000_000_000)));
 
-            runCmd(["ssh", host, "mkdir", rnd_hostdir]).yap;
+            runCmd(["ssh", host, "mkdir", rnd_hostdir]);
             runCmd(["scp", "-B", this_bin, format("%s:%s", host, rnd_hostbin)]);
             runCmd(["ssh", host, rnd_hostbin, "--run", "remote", "--output", rnd_hostresult]);
             runCmd(["scp", "-B", format("%s:%s", host, rnd_hostresult), retrieved_result]);
@@ -172,7 +172,7 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
 
         if (rnd_hostdir.length != 0) {
             try {
-                runCmd(["ssh", host, "rm", "-r", rnd_hostdir]).yap;
+                runCmd(["ssh", host, "rm", "-r", rnd_hostdir]);
             }
             catch (Exception e) {
                 collectException(logger.warning(e.msg));
@@ -219,7 +219,9 @@ void writeResult(Writer)(ProcessResult res, scope Writer w) {
     import metric_factory.csv;
 
     foreach (kv; res.timers.byKeyValue) {
-        writeCSV(w, kv.key, kv.value.min.total!"msecs", kv.value.max.total!"msecs", kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
+        writeCSV(w, kv.key, kv.value.min.total!"msecs",
+                kv.value.max.total!"msecs", kv.value.sum.total!"msecs",
+                kv.value.mean.total!"msecs");
     }
 
     foreach (kv; res.counters.byKeyValue) {

@@ -25,7 +25,7 @@ shared static this() {
 void simpleListdir(Collector coll) nothrow {
     try {
         auto sw = StopWatch(AutoStart.yes);
-        runCollect("ls").yap;
+        runCollect("ls");
         sw.stop;
         coll.put(Timer(BucketName("listdir"), Timer.Value(sw.peek.to!Duration)));
     }
