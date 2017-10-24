@@ -159,3 +159,16 @@ Deserialize a text file to a collection.
 
 The text files supported are those that store values the same way as StatsD.
 '''
+
+[SPC-dataformat]
+partof = 'REQ-purpose'
+text = '''
+The user wants an easy format to import to Excel.
+The metric factory itself needs a nice format for serialiation/deserialise of test results from a remote host.
+
+The metric factor shall:
+ - support writing the result to a CSV file.
+ - support writing the result to a data file that store each value as a StatsD compatible value.
+
+TODO maybe move this req.
+'''

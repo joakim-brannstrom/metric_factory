@@ -31,12 +31,15 @@ enum RunMode {
 int main(string[] args) {
     import std.traits : EnumMembers;
 
+    const curr_t = Clock.currTime;
+
     bool help;
     bool debug_;
     RunMode run_mode;
     OutputKind output_kind;
     TestHost[] test_hosts;
-    string output_file = "result.dat";
+    string output_file = format("result_%s-%s-%s_%sh_%sm_%ss.dat", curr_t.year,
+            cast(ushort) curr_t.month, curr_t.day, curr_t.hour, curr_t.minute, curr_t.second);
 
     std.getopt.GetoptResult help_info;
     try {
@@ -214,20 +217,27 @@ void remoteMetrics(Collector coll) {
 
 void writeResult(Writer)(ProcessResult res, scope Writer w) {
     import std.ascii : newline;
+    import std.datetime;
     import std.format : formattedWrite;
     import std.range.primitives : put;
     import metric_factory.csv;
 
+    auto curr_d = Clock.currTime;
+    auto curr_d_txt = format("%s-%s-%s %s:%s:%s", curr_d.year,
+            cast(ushort) curr_d.month, curr_d.day, curr_d.hour, curr_d.minute, curr_d.second);
+
+    writeCSV(w, "description", "datetime", "min", "max", "sum", "mean");
     foreach (kv; res.timers.byKeyValue) {
-        writeCSV(w, kv.key, kv.value.min.total!"msecs",
+        writeCSV(w, kv.key, curr_d_txt, kv.value.min.total!"msecs",
                 kv.value.max.total!"msecs", kv.value.sum.total!"msecs",
                 kv.value.mean.total!"msecs");
     }
 
+    writeCSV(w, "description", "datetime", "count");
     foreach (kv; res.counters.byKeyValue) {
         // TODO currently the changePerSecond isn't useful because this empties directly.
         //writeCSV(w, kv.key, kv.value.change, kv.value.changePerSecond);
-        writeCSV(w, kv.key, kv.value.change);
+        writeCSV(w, kv.key, curr_d_txt, kv.value.change);
     }
 }
 
