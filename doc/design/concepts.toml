@@ -277,10 +277,3 @@ If it is desired to generate plots standalone from graphite this lib may be usef
 
 See https://github.com/deviator/plot2d
 '''
-
-[SPC-serialiser]
-text = '''
-To serialise/deserialise D data types this may be useful.
-
-See https://github.com/atilaneves/cerealed
-'''

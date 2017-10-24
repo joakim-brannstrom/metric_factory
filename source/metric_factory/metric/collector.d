@@ -150,6 +150,7 @@ ProcessResult process(Collector coll) {
 }
 
 // TODO maybe change to "serialiser"?
+// #SPC-collection_serialiser
 void writeCollection(Writer)(Collector coll, scope Writer w) {
     import std.format : formattedWrite;
     import metric_factory.csv;
@@ -178,6 +179,8 @@ void writeCollection(Writer)(Collector coll, scope Writer w) {
  * Params:
  *  line =
  *  coll = collector to store the results in
+ *
+ * #SPC-collector_deserialize
  */
 void deserialise(const(char)[] line, Collector coll) nothrow {
     import std.exception : Exception, collectException;
@@ -194,7 +197,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
                 return true;
             }
         }
-        catch(Exception e) {
+        catch (Exception e) {
         }
 
         try {
@@ -203,7 +206,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
                 return true;
             }
         }
-        catch(Exception e) {
+        catch (Exception e) {
         }
 
         return false;
@@ -211,6 +214,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
 
     static bool tryParseTimer(Collector coll, string rest, BucketName name) nothrow {
         import core.time : dur;
+
         long ms;
 
         try {
@@ -219,7 +223,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
                 return true;
             }
         }
-        catch(Exception e) {
+        catch (Exception e) {
         }
 
         return false;
@@ -234,7 +238,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
                 return true;
             }
         }
-        catch(Exception e) {
+        catch (Exception e) {
         }
 
         return false;
@@ -249,7 +253,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
                 return true;
             }
         }
-        catch(Exception e) {
+        catch (Exception e) {
         }
 
         return false;
@@ -269,7 +273,7 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
             debug logger.trace("Unable to parse: ", rest);
         }
     }
-    catch(Exception e) {
+    catch (Exception e) {
         debug collectException(logger.trace(e.msg));
     }
 }

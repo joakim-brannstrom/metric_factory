@@ -123,8 +123,8 @@ Running the tests on remote hosts should be done in parallell to keep down the
 total runtime of the test suite.
 '''
 
-[SPC-parallell_test_host_execution]
-partof = 'REQ-parallell_test_host_execution'
+[SPC-remote_test_host_execution]
+partof = 'REQ-remote_test_host_execution'
 text = '''
 To keep the design simple to begin with the test results are stored in a local
 file that are retrieve by the master node.
@@ -137,7 +137,25 @@ mktmp results_XXXXX
 ssh host mkdir /tmp/<random>
 scp metric_factory host:/tmp/<random>
 ssh host:/tmp/<random>/metric_factory --run
+(remote hosts serialise the collection to a data file)
 scp host:/tmp/<random>/result.dat results_XXXXX
 
 # summarise the results
+deserialise the collected datafiles to a master collection
+'''
+
+[SPC-collection_serialiser]
+partof = 'SPC-remote_test_host_execution'
+text = '''
+Serialization of a Collection to a text file.
+
+Use the same convention as StatsD.
+'''
+
+[SPC-collector_deserialize]
+partof = 'SPC-remote_test_host_execution'
+text = '''
+Deserialize a text file to a collection.
+
+The text files supported are those that store values the same way as StatsD.
 '''
