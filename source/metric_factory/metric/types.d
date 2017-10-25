@@ -98,8 +98,8 @@ struct Gauge {
     private BucketName name_;
     private Value value_;
 
-    this(BucketName name_, Value v) {
-        this.name_ = name;
+    this(BucketName n, Value v) {
+        this.name_ = n;
         this.value_ = v;
     }
 
@@ -132,9 +132,9 @@ struct Timer {
     private BucketName name_;
     private Value value_;
 
-    this(BucketName name_, Value value_) {
-        this.name_ = name_;
-        this.value_ = value_;
+    this(BucketName n, Value v) {
+        this.name_ = n;
+        this.value_ = v;
     }
 
     @property auto name() const {
