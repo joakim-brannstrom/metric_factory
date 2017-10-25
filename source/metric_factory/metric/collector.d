@@ -141,10 +141,15 @@ ProcessResult process(Collector coll) {
         // dfmt on
 
         const auto val_per_sec = cast(double) sum_ / cast(double) flushInterval.total!"seconds";
-        res.counters[kv.key] = CounterResult(sum_, val_per_sec);
+        auto r = CounterResult(sum_, val_per_sec);
+        debug logger.trace("counter: ", r);
+        res.counters[kv.key] = r;
     }
 
     res.gauges = coll.gauges;
+    foreach (kv; coll.gauges) {
+        debug logger.tracef("gauges: Gauge(%s, %s)", kv.name, kv.value);
+    }
 
     return res;
 }
@@ -187,12 +192,13 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
     import std.format : formattedRead;
     import std.algorithm;
 
-    static bool tryParseCounter(Collector coll, string rest, BucketName name) nothrow {
+    static bool tryParseCounter(Collector coll, const string rest, BucketName name) nothrow {
         long value;
         double sample_r;
 
         try {
-            if (formattedRead(rest, "%s|c|@%f", value, sample_r) == 2) {
+            auto txt = rest[];
+            if (formattedRead(txt, "%s|c|@%f", value, sample_r) == 2) {
                 coll.put(Counter(name, Counter.Change(value), Counter.SampleRate(sample_r)));
                 return true;
             }
@@ -201,7 +207,8 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
         }
 
         try {
-            if (formattedRead(rest, "%s|c", value) == 1) {
+            auto txt = rest[];
+            if (formattedRead(txt, "%s|c", value) == 1) {
                 coll.put(Counter(name, Counter.Change(value)));
                 return true;
             }
@@ -303,4 +310,23 @@ struct SetBucket {
     void clear() {
         payload.clear;
     }
+}
+
+@("shall parse a string representing serialized metric types")
+unittest {
+    auto coll = new Collector;
+    // test counters
+    deserialise("foo1:75|c", coll);
+    deserialise("foo2:63|c|@0.1", coll);
+    // test gauge
+    deserialise("foo:81|g", coll);
+    // test timer
+    deserialise("bar:1000|ms", coll);
+    // test set
+    deserialise("gav:32|s", coll);
+
+    assert(coll.counters.length == 2);
+    assert(coll.gauges.length == 1);
+    assert(coll.timers.length == 1);
+    assert(coll.sets.length == 1);
 }
