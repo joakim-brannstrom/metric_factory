@@ -159,10 +159,13 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
             const retrieved_result = buildPath(result_dir, format("%s_%s",
                     host, uniform(1, 2_000_000_000)));
 
-            runCmd(["ssh", host, "mkdir", rnd_hostdir]);
-            runCmd(["scp", "-B", this_bin, format("%s:%s", host, rnd_hostbin)]);
-            runCmd(["ssh", host, rnd_hostbin, "--run", "remote", "--output", rnd_hostresult]);
-            runCmd(["scp", "-B", format("%s:%s", host, rnd_hostresult), retrieved_result]);
+            runCmd(["ssh", "-oStrictHostKeyChecking=no", host, "mkdir", rnd_hostdir]);
+            runCmd(["scp", "-oStrictHostKeyChecking=no", "-B", this_bin,
+                    format("%s:%s", host, rnd_hostbin)]);
+            runCmd(["ssh", "-oStrictHostKeyChecking=no", host, rnd_hostbin,
+                    "--run", "remote", "--output", rnd_hostresult]);
+            runCmd(["scp", "-oStrictHostKeyChecking=no", "-B", format("%s:%s",
+                    host, rnd_hostresult), retrieved_result]);
 
             auto fin = File(retrieved_result);
             foreach (l; fin.byLine) {
