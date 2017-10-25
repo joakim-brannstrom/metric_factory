@@ -60,7 +60,8 @@ ShellScriptResult runShellScript(DirPath root, string shell, string script) noth
 
     DirPath rnd_testdir;
     try {
-        rnd_testdir = buildPath(root, uniform(0, 2_000_000_000).to!string).DirPath;
+        rnd_testdir = buildPath(root, format("metric_factory_%s", uniform(0,
+                2_000_000_000).to!string)).DirPath;
     }
     catch (Exception e) {
         collectException(logger.error(e.msg));
