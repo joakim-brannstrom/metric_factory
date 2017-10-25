@@ -223,21 +223,26 @@ void writeResult(Writer)(ProcessResult res, scope Writer w) {
     import metric_factory.csv;
 
     auto curr_d = Clock.currTime;
-    auto curr_d_txt = format("%s-%s-%s %s:%s:%s", curr_d.year,
-            cast(ushort) curr_d.month, curr_d.day, curr_d.hour, curr_d.minute, curr_d.second);
+    auto curr_d_txt = format("%s-%s-%s", curr_d.year, cast(ushort) curr_d.month, curr_d.day);
+    auto curr_t_txt = format("%s:%s:%s", curr_d.hour, curr_d.minute, curr_d.second);
 
-    writeCSV(w, "description", "datetime", "min", "max", "sum", "mean");
+    writeCSV(w, "description", "date", "time", "min", "max", "sum", "mean");
     foreach (kv; res.timers.byKeyValue) {
-        writeCSV(w, kv.key, curr_d_txt, kv.value.min.total!"msecs",
-                kv.value.max.total!"msecs", kv.value.sum.total!"msecs",
-                kv.value.mean.total!"msecs");
+        writeCSV(w, kv.key, curr_d_txt, curr_t_txt,
+                kv.value.min.total!"msecs", kv.value.max.total!"msecs",
+                kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
     }
 
-    writeCSV(w, "description", "datetime", "count");
+    writeCSV(w, "description", "date", "time", "count");
     foreach (kv; res.counters.byKeyValue) {
         // TODO currently the changePerSecond isn't useful because this empties directly.
         //writeCSV(w, kv.key, kv.value.change, kv.value.changePerSecond);
-        writeCSV(w, kv.key, curr_d_txt, kv.value.change);
+        writeCSV(w, kv.key, curr_d_txt, curr_t_txt, kv.value.change);
+    }
+
+    writeCSV(w, "description", "date", "time", "count");
+    foreach (kv; res.gauges.byKeyValue) {
+        writeCSV(w, kv.key, curr_d_txt, curr_t_txt, kv.value.value);
     }
 }
 
