@@ -25,7 +25,8 @@ enum OutputKind {
 
 enum RunMode {
     standalone,
-    remote
+    remote,
+    plugin
 }
 
 int main(string[] args) {
@@ -35,6 +36,7 @@ int main(string[] args) {
 
     bool help;
     bool debug_;
+    size_t plugin_id;
     RunMode run_mode;
     OutputKind output_kind;
     TestHost[] test_hosts;
@@ -48,6 +50,7 @@ int main(string[] args) {
             "d|debug", "run in debug mode when logging", &debug_,
             "host", "host(s) to run the test suite on", &test_hosts,
             "run", "mode to run the tests in. Either standalone or from a remote collector "  ~ format("[%(%s|%)]", [EnumMembers!RunMode]), &run_mode,
+            "plugin-id", "run the specific plugin with the ID", &plugin_id,
             "output-kind", "format to write the result in " ~ format("[%(%s|%)]", [EnumMembers!OutputKind]), &output_kind,
             "output", "file to write the result to", &output_file,
             );
@@ -91,6 +94,15 @@ int main(string[] args) {
         remoteMetrics(coll);
         auto fout = File(output_file, "w");
         writeCollection(coll, (const(char)[] a) { fout.write(a); });
+    } else if (run_mode == RunMode.plugin) {
+        standaloneMetrics(coll, plugin_id);
+        auto res = process(coll);
+        auto fout = File(output_file, "w");
+        if (output_kind == OutputKind.dat) {
+            writeCollection(coll, (const(char)[] a) { fout.write(a); });
+        } else {
+            writeResult(res, (const(char)[] a) { fout.write(a); });
+        }
     } else {
         runMetricSuiteOnTestHosts(coll, test_hosts);
         auto res = process(coll);
@@ -205,6 +217,21 @@ void standaloneMetrics(Collector coll) {
         logger.info("run plugin: ", p.name);
         p.func(coll);
     }
+}
+
+void standaloneMetrics(Collector coll, size_t plugin_id) {
+    import metric_factory.plugin;
+
+    logger.info("Registered plugins: ", registeredPlugins);
+
+    if (plugin_id >= registeredPlugins) {
+        logger.errorf("plugin id %s do not exist", plugin_id);
+        return;
+    }
+
+    auto p = getPlugins()[plugin_id];
+    logger.info("run plugin: ", p.name);
+    p.func(coll);
 }
 
 void remoteMetrics(Collector coll) {
