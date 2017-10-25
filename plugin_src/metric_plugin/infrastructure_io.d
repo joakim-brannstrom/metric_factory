@@ -22,8 +22,8 @@ shared static this() {
     registerPlugin(Plugin("List files in current directory", (coll) {
             simpleListdir(coll, DirPath("."));
         }));
-    registerPlugin(Plugin("Create and remove 10 small files", (coll) {
-            testSmallFilePerformance(coll, DirPath("."), 10);
+    registerPlugin(Plugin("Create and remove small files", (coll) {
+            testSmallFilePerformance(coll, DirPath("."), 10_000);
         }));
 }
 
@@ -50,11 +50,19 @@ void simpleListdir(Collector coll, DirPath root) nothrow {
  * #SPC-infrastructure_io-smallfile_perf
  */
 void testSmallFilePerformance(Collector coll, const DirPath root, const long files_to_create) nothrow {
+    import std.algorithm : map, among;
+    import std.array : array;
+    import std.format : format;
+    import std.utf;
+
     auto wa = WorkArea(root);
     if (!wa.isValid)
         return;
 
     auto rnd_testdir = wa.root;
+
+    string path_n = (cast(string) root).byDchar.map!(a => a.among('.', '/')
+            ? cast(dchar) '_' : a).toUTF8();
 
     try {
         auto sw = StopWatch(AutoStart.yes);
@@ -63,7 +71,7 @@ void testSmallFilePerformance(Collector coll, const DirPath root, const long fil
             iota(0, 10_000).each!(a => fout.write(a));
         }
         sw.stop;
-        coll.put(Timer.from(sw, "create_10k_small_files"));
+        coll.put(Timer.from(sw, format("create_%s_small_files_%s", files_to_create, path_n)));
     }
     catch (Exception e) {
         collectException(logger.warning(e.msg));
@@ -71,7 +79,7 @@ void testSmallFilePerformance(Collector coll, const DirPath root, const long fil
 
     try {
         auto sw = wa.cleanup;
-        coll.put(Timer.from(sw, "remove_10k_small_files"));
+        coll.put(Timer.from(sw, format("remove_%s_small_files_%s", files_to_create, path_n)));
     }
     catch (Exception e) {
     }
