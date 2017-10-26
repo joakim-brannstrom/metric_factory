@@ -164,7 +164,6 @@ ProcessResult process(Collector coll) {
     return res;
 }
 
-    import metric_factory.csv;
 private:
 
 struct Bucket(T) {
@@ -175,21 +174,19 @@ struct Bucket(T) {
 }
 
 struct SetBucket {
-    private bool[typeof(Set.value)] payload;
+    bool[typeof(Set.value)] data;
 
     void put(Set v) {
-        if (v.value !in payload)
-            payload[v.value] = true;
+        if (v.value !in data)
+            data[v.value] = true;
     }
 
     /// Count unique elements
     size_t countUnique() {
-        return payload.length;
+        return data.length;
     }
 
     void clear() {
-        payload.clear;
+        data.clear;
     }
-}
-
 }
