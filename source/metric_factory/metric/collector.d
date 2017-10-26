@@ -88,6 +88,7 @@ struct ProcessResult {
     TimerResult[BucketName] timers;
     Gauge[BucketName] gauges;
     CounterResult[BucketName] counters;
+    SetResult[BucketName] sets;
 }
 
 struct TimerResult {
@@ -102,6 +103,11 @@ struct TimerResult {
 struct CounterResult {
     Counter.Change change;
     double changePerSecond;
+}
+
+struct SetResult {
+    // number of unique elements
+    size_t count;
 }
 
 ProcessResult process(Collector coll) {
@@ -149,6 +155,12 @@ ProcessResult process(Collector coll) {
     res.gauges = coll.gauges;
     foreach (kv; coll.gauges) {
         debug logger.tracef("Gauge(%s, %s)", kv.name, kv.value);
+    }
+
+    foreach (kv; coll.sets.byKeyValue) {
+        auto r = SetResult(kv.value.countUnique);
+        debug logger.tracef("Set(%s, %s)", kv.key, r.count);
+        res.sets[kv.key] = r;
     }
 
     return res;
