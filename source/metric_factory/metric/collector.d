@@ -200,17 +200,21 @@ void writeCollection(Writer)(Collector coll, scope Writer w) {
  * #SPC-collector_deserialize
  */
 void deserialise(const(char)[] line, Collector coll) nothrow {
+    import std.conv : to;
     import std.exception : Exception, collectException;
     import std.format : formattedRead;
     import std.algorithm;
+    import std.regex;
 
     static bool tryParseCounter(Collector coll, const string rest, BucketName name) nothrow {
-        long value;
-        double sample_r;
+        auto re1 = ctRegex!(`(.*)\|c`);
+        auto re2 = ctRegex!(`(.*)\|c\|@(.*)`);
 
         try {
-            auto txt = rest[];
-            if (formattedRead(txt, "%s|c|@%f", value, sample_r) == 2) {
+            auto m = matchFirst(rest, re2);
+            if (!m.empty) {
+                auto value = m[1].to!long;
+                auto sample_r = m[2].to!double;
                 coll.put(Counter(name, Counter.Change(value), Counter.SampleRate(sample_r)));
                 return true;
             }
@@ -219,8 +223,9 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
         }
 
         try {
-            auto txt = rest[];
-            if (formattedRead(txt, "%s|c", value) == 1) {
+            auto m = matchFirst(rest, re1);
+            if (!m.empty) {
+                auto value = m[1].to!long;
                 coll.put(Counter(name, Counter.Change(value)));
                 return true;
             }
@@ -234,11 +239,13 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
     static bool tryParseTimer(Collector coll, string rest, BucketName name) nothrow {
         import core.time : dur;
 
-        long ms;
+        auto re = ctRegex!(`(.*)\|ms`);
 
         try {
-            if (formattedRead(rest, "%s|ms", ms) == 1) {
-                coll.put(Timer(name, Timer.Value(ms.dur!"msecs")));
+            auto m = matchFirst(rest, re);
+            if (!m.empty) {
+                auto ms = m[1].to!long.dur!"msecs";
+                coll.put(Timer(name, Timer.Value(ms)));
                 return true;
             }
         }
@@ -249,10 +256,12 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
     }
 
     static bool tryParseGauge(Collector coll, string rest, BucketName name) nothrow {
-        long value;
+        auto re = ctRegex!(`(.*)\|g`);
 
         try {
-            if (formattedRead(rest, "%s|g", value) == 1) {
+            auto m = matchFirst(rest, re);
+            if (!m.empty) {
+                auto value = m[1].to!long;
                 coll.put(Gauge(name, Gauge.Value(value)));
                 return true;
             }
@@ -264,10 +273,12 @@ void deserialise(const(char)[] line, Collector coll) nothrow {
     }
 
     static bool tryParseSet(Collector coll, string rest, BucketName name) nothrow {
-        ulong value;
+        auto re = ctRegex!(`(.*)\|s`);
 
         try {
-            if (formattedRead(rest, "%s|s", value) != 0) {
+            auto m = matchFirst(rest, re);
+            if (!m.empty) {
+                auto value = m[1].to!ulong;
                 coll.put(Set(name, Set.Value(value)));
                 return true;
             }
@@ -326,19 +337,25 @@ struct SetBucket {
 
 @("shall parse a string representing serialized metric types")
 unittest {
+    import std.math : approxEqual;
+
     auto coll = new Collector;
     // test counters
     deserialise("foo1:75|c", coll);
     deserialise("foo2:63|c|@0.1", coll);
+    assert(coll.counters.length == 2);
+    assert(!coll.counters[BucketName("foo2")].data[0].sampleRate.isNull);
+    assert(coll.counters[BucketName("foo2")].data[0].sampleRate.approxEqual(0.1));
+
     // test gauge
     deserialise("foo:81|g", coll);
+    assert(coll.gauges.length == 1);
+
     // test timer
     deserialise("bar:1000|ms", coll);
+    assert(coll.timers.length == 1);
+
     // test set
     deserialise("gav:32|s", coll);
-
-    assert(coll.counters.length == 2);
-    assert(coll.gauges.length == 1);
-    assert(coll.timers.length == 1);
     assert(coll.sets.length == 1);
 }
