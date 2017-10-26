@@ -125,7 +125,7 @@ ProcessResult process(Collector coll) {
         const auto mean_ = sum_ / cnt;
 
         auto r = TimerResult(min_, max_, sum_, mean_);
-        debug logger.trace("timer: ", r);
+        debug logger.trace(r);
         res.timers[kv.key] = r;
     }
 
@@ -142,13 +142,13 @@ ProcessResult process(Collector coll) {
 
         const auto val_per_sec = cast(double) sum_ / cast(double) flushInterval.total!"seconds";
         auto r = CounterResult(sum_, val_per_sec);
-        debug logger.trace("counter: ", r);
+        debug logger.trace(r);
         res.counters[kv.key] = r;
     }
 
     res.gauges = coll.gauges;
     foreach (kv; coll.gauges) {
-        debug logger.tracef("gauges: Gauge(%s, %s)", kv.name, kv.value);
+        debug logger.tracef("Gauge(%s, %s)", kv.name, kv.value);
     }
 
     return res;
