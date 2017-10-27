@@ -29,8 +29,6 @@ struct BucketName {
  * It is amplified to 1 / 0.1 = 10.
  */
 struct Counter {
-    import std.format : FormatSpec;
-
     struct SampleRate {
         double payload;
         alias payload this;
@@ -74,22 +72,10 @@ struct Counter {
     @property auto sampleRate() const {
         return sample_r;
     }
-
-    void toString(Writer, Char)(scope Writer w, FormatSpec!Char fmt) const {
-        import std.format : formattedWrite;
-
-        if (sample_r.isNull) {
-            formattedWrite(w, "%s:%s|c", name_, change_);
-        } else {
-            formattedWrite(w, "%s:%s|c|@%f", name_, change_, sample_r);
-        }
-    }
 }
 
 /// #SPC-concept-gauges
 struct Gauge {
-    import std.format : FormatSpec;
-
     struct Value {
         long payload;
         alias payload this;
@@ -110,17 +96,10 @@ struct Gauge {
     @property auto value() const {
         return value_;
     }
-
-    void toString(Writer, Char)(scope Writer w, FormatSpec!Char fmt) const {
-        import std.format : formattedWrite;
-
-        formattedWrite(w, "%s:%s|g", name, value);
-    }
 }
 
 /// #SPC-concept-timers
 struct Timer {
-    import std.format : FormatSpec;
     import std.datetime : StopWatch;
 
     // How long a certain task took to complete.
@@ -149,12 +128,6 @@ struct Timer {
         return this.value_.opCmp(rhs.value_);
     }
 
-    void toString(Writer, Char)(scope Writer w, FormatSpec!Char fmt) const {
-        import std.format : formattedWrite;
-
-        formattedWrite(w, "%s:%s|ms", name_, value_.total!"msecs");
-    }
-
     static Timer from(ref StopWatch sw, string name) {
         import std.conv : to;
 
@@ -167,8 +140,6 @@ struct Timer {
  * #SPC-concept-sets
  */
 struct Set {
-    import std.format : FormatSpec;
-
     struct Value {
         ulong payload;
         alias payload this;
@@ -188,12 +159,5 @@ struct Set {
 
     @property auto value() const {
         return value_;
-    }
-
-    void toString(Writer, Char)(scope Writer w, FormatSpec!Char fmt) const {
-        import std.format : formattedWrite;
-        import std.conv : to;
-
-        formattedWrite(w, "%s:%s|s", name_, value_);
     }
 }

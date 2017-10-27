@@ -32,6 +32,8 @@ enum RunMode {
 int main(string[] args) {
     import std.traits : EnumMembers;
 
+    static import metric_factory.dataformat.statsd;
+
     const curr_t = Clock.currTime;
 
     bool help;
@@ -86,20 +88,26 @@ int main(string[] args) {
         auto res = process(coll);
         auto fout = File(output_file, "w");
         if (output_kind == OutputKind.dat) {
-            writeCollection(coll, (const(char)[] a) { fout.write(a); });
+            metric_factory.dataformat.statsd.serialize(coll, (const(char)[] a) {
+                fout.write(a);
+            });
         } else {
             writeResult(res, (const(char)[] a) { fout.write(a); });
         }
     } else if (run_mode == RunMode.remote) {
         remoteMetrics(coll);
         auto fout = File(output_file, "w");
-        writeCollection(coll, (const(char)[] a) { fout.write(a); });
+        metric_factory.dataformat.statsd.serialize(coll, (const(char)[] a) {
+            fout.write(a);
+        });
     } else if (run_mode == RunMode.plugin) {
         standaloneMetrics(coll, plugin_id);
         auto res = process(coll);
         auto fout = File(output_file, "w");
         if (output_kind == OutputKind.dat) {
-            writeCollection(coll, (const(char)[] a) { fout.write(a); });
+            metric_factory.dataformat.statsd.serialize(coll, (const(char)[] a) {
+                fout.write(a);
+            });
         } else {
             writeResult(res, (const(char)[] a) { fout.write(a); });
         }
@@ -108,7 +116,9 @@ int main(string[] args) {
         auto res = process(coll);
         auto fout = File(output_file, "w");
         if (output_kind == OutputKind.dat) {
-            writeCollection(coll, (const(char)[] a) { fout.write(a); });
+            metric_factory.dataformat.statsd.serialize(coll, (const(char)[] a) {
+                fout.write(a);
+            });
         } else {
             writeResult(res, (const(char)[] a) { fout.write(a); });
         }
@@ -181,6 +191,8 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
 
             auto fin = File(retrieved_result);
             foreach (l; fin.byLine) {
+                import metric_factory.dataformat.statsd;
+
                 deserialise(l, coll);
             }
         }
