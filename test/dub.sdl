@@ -1,12 +1,14 @@
-name "test_metric_factory"
+name "metric_factory"
 description "A tool to gather metrics of infrastructure and workflow"
 authors "Joakim Brännström"
 copyright "Copyright © 2017, Joakim Brännström"
 license "BSL-1.0"
 
-dependency "test_metric_factory:scriptlike" version="*"
+dependency "metric_factory:scriptlike" version="*"
+dependency "metric_factory:msgpack-ll" version="*"
 
 subPackage "../scriptlike/"
+subPackage "../msgpack-ll/"
 
 targetPath "build"
 

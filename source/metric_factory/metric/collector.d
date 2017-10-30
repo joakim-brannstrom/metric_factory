@@ -22,12 +22,10 @@ immutable Duration flushInterval = dur!"seconds"(10);
  * A unique bucket kind for each kind that is collected.
  */
 class Collector {
-    private {
-        Bucket!(Counter)[BucketName] counters;
-        Gauge[BucketName] gauges;
-        Bucket!(Timer)[BucketName] timers;
-        SetBucket[BucketName] sets;
-    }
+    Bucket!(Counter)[BucketName] counters;
+    Gauge[BucketName] gauges;
+    Bucket!(Timer)[BucketName] timers;
+    SetBucket[BucketName] sets;
 
     void put(Counter a) {
         debug logger.trace(a);
@@ -115,6 +113,7 @@ ProcessResult process(Collector coll) {
     import std.algorithm : sort, reduce, map;
     import core.time : dur, to;
     import std.conv : to;
+    import std.math : ceil, approxEqual;
 
     ProcessResult res;
 
@@ -137,17 +136,17 @@ ProcessResult process(Collector coll) {
 
     foreach (kv; coll.counters.byKeyValue) {
         // dfmt off
-        const auto sum_ = reduce!((a,b) => a+b)(Counter.Change(0),
+        const auto sum_ = reduce!((a,b) => a+b)(0L,
             kv.value.data
             .map!((a) {
-                  if (a.sampleRate.isNull || a.sampleRate == 0) return a.change;
-                  else return Counter.Change(cast(long) (a.change / a.sampleRate));
+                  if (a.sampleRate.isNull || approxEqual(a.sampleRate.get, 0.0, double.min_normal, double.min_normal)) return cast(long) a.change;
+                  else return cast(long) ceil(cast(double) a.change / a.sampleRate.get);
                   }
             ));
         // dfmt on
 
         const auto val_per_sec = cast(double) sum_ / cast(double) flushInterval.total!"seconds";
-        auto r = CounterResult(sum_, val_per_sec);
+        auto r = CounterResult(Counter.Change(sum_), val_per_sec);
         debug logger.trace(r);
         res.counters[kv.key] = r;
     }
@@ -166,148 +165,6 @@ ProcessResult process(Collector coll) {
     return res;
 }
 
-// TODO maybe change to "serialiser"?
-// #SPC-collection_serialiser
-void writeCollection(Writer)(Collector coll, scope Writer w) {
-    import std.format : formattedWrite;
-    import metric_factory.csv;
-
-    // TODO fix code duplication
-
-    foreach (kv; coll.timers.byKeyValue) {
-        formattedWrite(w, "%(%s\n%)\n", kv.value.data);
-    }
-
-    foreach (kv; coll.counters.byKeyValue) {
-        formattedWrite(w, "%(%s\n%)\n", kv.value.data);
-    }
-
-    foreach (kv; coll.gauges.byKeyValue) {
-        formattedWrite(w, "%s\n", kv.value);
-    }
-
-    foreach (kv; coll.sets.byKeyValue) {
-        formattedWrite(w, "%s\n", Set(kv.key, Set.Value(kv.value.countUnique)));
-    }
-}
-
-/** Deserialise a line.
- *
- * Params:
- *  line =
- *  coll = collector to store the results in
- *
- * #SPC-collector_deserialize
- */
-void deserialise(const(char)[] line, Collector coll) nothrow {
-    import std.conv : to;
-    import std.exception : Exception, collectException;
-    import std.format : formattedRead;
-    import std.algorithm;
-    import std.regex;
-
-    static bool tryParseCounter(Collector coll, const string rest, BucketName name) nothrow {
-        auto re1 = ctRegex!(`(.*)\|c`);
-        auto re2 = ctRegex!(`(.*)\|c\|@(.*)`);
-
-        try {
-            auto m = matchFirst(rest, re2);
-            if (!m.empty) {
-                auto value = m[1].to!long;
-                auto sample_r = m[2].to!double;
-                coll.put(Counter(name, Counter.Change(value), Counter.SampleRate(sample_r)));
-                return true;
-            }
-        }
-        catch (Exception e) {
-        }
-
-        try {
-            auto m = matchFirst(rest, re1);
-            if (!m.empty) {
-                auto value = m[1].to!long;
-                coll.put(Counter(name, Counter.Change(value)));
-                return true;
-            }
-        }
-        catch (Exception e) {
-        }
-
-        return false;
-    }
-
-    static bool tryParseTimer(Collector coll, string rest, BucketName name) nothrow {
-        import core.time : dur;
-
-        auto re = ctRegex!(`(.*)\|ms`);
-
-        try {
-            auto m = matchFirst(rest, re);
-            if (!m.empty) {
-                auto ms = m[1].to!long.dur!"msecs";
-                coll.put(Timer(name, Timer.Value(ms)));
-                return true;
-            }
-        }
-        catch (Exception e) {
-        }
-
-        return false;
-    }
-
-    static bool tryParseGauge(Collector coll, string rest, BucketName name) nothrow {
-        auto re = ctRegex!(`(.*)\|g`);
-
-        try {
-            auto m = matchFirst(rest, re);
-            if (!m.empty) {
-                auto value = m[1].to!long;
-                coll.put(Gauge(name, Gauge.Value(value)));
-                return true;
-            }
-        }
-        catch (Exception e) {
-        }
-
-        return false;
-    }
-
-    static bool tryParseSet(Collector coll, string rest, BucketName name) nothrow {
-        auto re = ctRegex!(`(.*)\|s`);
-
-        try {
-            auto m = matchFirst(rest, re);
-            if (!m.empty) {
-                auto value = m[1].to!ulong;
-                coll.put(Set(name, Set.Value(value)));
-                return true;
-            }
-        }
-        catch (Exception e) {
-        }
-
-        return false;
-    }
-
-    try {
-        BucketName name;
-        string rest;
-
-        if (formattedRead(line, "%s:%s", name.payload, rest) != 2) {
-            // invalid entry, skipping
-        } else if (tryParseCounter(coll, rest, name)) {
-        } else if (tryParseTimer(coll, rest, name)) {
-        } else if (tryParseGauge(coll, rest, name)) {
-        } else if (tryParseSet(coll, rest, name)) {
-        } else {
-            debug logger.trace("Unable to parse: ", rest);
-        }
-    }
-    catch (Exception e) {
-        debug collectException(logger.trace(e.msg));
-    }
-}
-
 private:
 
 struct Bucket(T) {
@@ -318,44 +175,19 @@ struct Bucket(T) {
 }
 
 struct SetBucket {
-    private bool[typeof(Set.value)] payload;
+    bool[typeof(Set.value)] data;
 
     void put(Set v) {
-        if (v.value !in payload)
-            payload[v.value] = true;
+        if (v.value !in data)
+            data[v.value] = true;
     }
 
     /// Count unique elements
     size_t countUnique() {
-        return payload.length;
+        return data.length;
     }
 
     void clear() {
-        payload.clear;
+        data.clear;
     }
-}
-
-@("shall parse a string representing serialized metric types")
-unittest {
-    import std.math : approxEqual;
-
-    auto coll = new Collector;
-    // test counters
-    deserialise("foo1:75|c", coll);
-    deserialise("foo2:63|c|@0.1", coll);
-    assert(coll.counters.length == 2);
-    assert(!coll.counters[BucketName("foo2")].data[0].sampleRate.isNull);
-    assert(coll.counters[BucketName("foo2")].data[0].sampleRate.approxEqual(0.1));
-
-    // test gauge
-    deserialise("foo:81|g", coll);
-    assert(coll.gauges.length == 1);
-
-    // test timer
-    deserialise("bar:1000|ms", coll);
-    assert(coll.timers.length == 1);
-
-    // test set
-    deserialise("gav:32|s", coll);
-    assert(coll.sets.length == 1);
 }

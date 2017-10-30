@@ -147,17 +147,20 @@ deserialise the collected datafiles to a master collection
 [SPC-collection_serialiser]
 partof = 'SPC-remote_test_host_execution'
 text = '''
-Serialization of a Collection to a text file.
+Serialization of the data in a collection shall support full and limited serialization.
 
-Use the same convention as StatsD.
+Full serialization is all the data that is in the container.
+This uses a custom file format.
+
+Limited serialization is to a text file containing the textual subset of the
+collection that are supported by StatsD.
+This is Counter, Gauge, Set and Timer.
 '''
 
 [SPC-collector_deserialize]
 partof = 'SPC-remote_test_host_execution'
 text = '''
-Deserialize a text file to a collection.
-
-The text files supported are those that store values the same way as StatsD.
+The inverse of [[SPC-collection_serialiser]]
 '''
 
 [SPC-dataformat]

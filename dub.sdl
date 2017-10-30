@@ -5,8 +5,10 @@ copyright "Copyright © 2017, Joakim Brännström"
 license "BSL-1.0"
 
 dependency "metric_factory:scriptlike" version="*"
+dependency "metric_factory:msgpack-ll" version="*"
 
 subPackage "./scriptlike/"
+subPackage "./msgpack-ll/"
 
 targetPath "build"
 

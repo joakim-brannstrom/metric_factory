@@ -61,8 +61,16 @@ void testSmallFilePerformance(Collector coll, const DirPath root, const long fil
 
     auto rnd_testdir = wa.root;
 
-    string path_n = (cast(string) root).byDchar.map!(a => a.among('.', '/')
-            ? cast(dchar) '_' : a).toUTF8();
+    string path_n;
+
+    try {
+        path_n = (cast(string) root).byDchar.map!(a => a.among('.', '/')
+                ? cast(dchar) '_' : a).array().toUTF8();
+    }
+    catch (Exception e) {
+        collectException(logger.warning("Unable to create a filename"));
+        return;
+    }
 
     try {
         auto sw = StopWatch(AutoStart.yes);
