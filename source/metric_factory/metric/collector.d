@@ -113,6 +113,7 @@ ProcessResult process(Collector coll) {
     import std.algorithm : sort, reduce, map;
     import core.time : dur, to;
     import std.conv : to;
+    import std.math : ceil, approxEqual;
 
     ProcessResult res;
 
@@ -135,17 +136,17 @@ ProcessResult process(Collector coll) {
 
     foreach (kv; coll.counters.byKeyValue) {
         // dfmt off
-        const auto sum_ = reduce!((a,b) => a+b)(Counter.Change(0),
+        const auto sum_ = reduce!((a,b) => a+b)(0L,
             kv.value.data
             .map!((a) {
-                  if (a.sampleRate.isNull || a.sampleRate == 0) return a.change;
-                  else return Counter.Change(cast(long) (a.change / a.sampleRate));
+                  if (a.sampleRate.isNull || approxEqual(a.sampleRate.get, 0.0, double.min_normal, double.min_normal)) return cast(long) a.change;
+                  else return cast(long) ceil(cast(double) a.change / a.sampleRate.get);
                   }
             ));
         // dfmt on
 
         const auto val_per_sec = cast(double) sum_ / cast(double) flushInterval.total!"seconds";
-        auto r = CounterResult(sum_, val_per_sec);
+        auto r = CounterResult(Counter.Change(sum_), val_per_sec);
         debug logger.trace(r);
         res.counters[kv.key] = r;
     }

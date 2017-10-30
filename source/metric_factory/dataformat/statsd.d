@@ -67,7 +67,6 @@ void serialize(Writer)(scope Writer w, Collector coll) {
 void deserialize(const(char)[] line, Collector coll) nothrow {
     import std.conv : to;
     import std.exception : Exception, collectException;
-    import std.format : formattedRead;
     import std.algorithm;
     import std.regex;
 
@@ -155,12 +154,20 @@ void deserialize(const(char)[] line, Collector coll) nothrow {
     }
 
     try {
+        auto re = ctRegex!(`(.*):(.*)`);
         BucketName name;
         string rest;
 
-        if (formattedRead(line, "%s:%s", name.payload, rest) != 2) {
+        auto m = matchFirst(line, re);
+        if (m.empty) {
             // invalid entry, skipping
-        } else if (tryParseCounter(coll, rest, name)) {
+            return;
+        } else {
+            name = BucketName(m[1].idup);
+            rest = m[2].idup;
+        }
+
+        if (tryParseCounter(coll, rest, name)) {
         } else if (tryParseTimer(coll, rest, name)) {
         } else if (tryParseGauge(coll, rest, name)) {
         } else if (tryParseSet(coll, rest, name)) {
@@ -183,7 +190,7 @@ unittest {
     deserialize("foo2:63|c|@0.1", coll);
     assert(coll.counters.length == 2);
     assert(!coll.counters[BucketName("foo2")].data[0].sampleRate.isNull);
-    assert(coll.counters[BucketName("foo2")].data[0].sampleRate.approxEqual(0.1));
+    assert(coll.counters[BucketName("foo2")].data[0].sampleRate.get.approxEqual(0.1));
 
     // test gauge
     deserialize("foo:81|g", coll);
