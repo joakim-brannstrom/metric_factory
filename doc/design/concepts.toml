@@ -29,7 +29,6 @@ sent to an upstream backend service.
 '''
 
 [SPC-concept-counters]
-partof = 'SPC-concept'
 text = '''
 Counters count the number of times an event occurs.
 
@@ -90,7 +89,6 @@ for (key in counters) {
 '''
 
 [SPC-concept-gauges]
-partof = 'SPC-concept'
 text = '''
 Gauges are single metric readings that are recorded and published to the
 upstream service.
@@ -124,8 +122,21 @@ will be kept in memory in StatsD and be sent to the backend at the end of every
 flush interval.
 '''
 
+[SPC-concept-sets]
+text = '''
+Sets track the number of unique elements belonging to a group.
+
+This could be used to track the number of unique visitors to your site at any
+point in time.
+
+At each flush interval, the Librato statsd backend will push the number of
+unique elements in the set as a single gauge value.
+
+Be aware that if you are tracking the same set across multiple statsd servers,
+there is no guarantee of uniqueness across the individual statsd servers.
+'''
+
 [SPC-concept-timers]
-partof = 'SPC-concept'
 text = '''
 Timers are sampling of particulare metrics multiple times over a sampling time.
 
@@ -230,21 +241,6 @@ StatsD will calculate the following values
     count 8
     sum 4466
     mean 558.25
-'''
-
-[SPC-concept-sets]
-partof = 'SPC-concept'
-text = '''
-Sets track the number of unique elements belonging to a group.
-
-This could be used to track the number of unique visitors to your site at any
-point in time.
-
-At each flush interval, the Librato statsd backend will push the number of
-unique elements in the set as a single gauge value.
-
-Be aware that if you are tracking the same set across multiple statsd servers,
-there is no guarantee of uniqueness across the individual statsd servers.
 '''
 
 [SPC-graphite]

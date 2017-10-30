@@ -72,6 +72,33 @@ struct Counter {
     @property auto sampleRate() const {
         return sample_r;
     }
+
+    import std.format : FormatSpec;
+
+    void toString(Writer, Char)(scope Writer w, FormatSpec!Char fmt) @safe const {
+        import std.format : formattedWrite;
+
+        if (sample_r.isNull) {
+            formattedWrite(w, "Counter(%s, %s)", name, change);
+        } else {
+            formattedWrite(w, "Counter(%s, %s, %s)", name, change, sample_r.get);
+        }
+    }
+
+    string toString() @safe const {
+        import std.exception : assumeUnique;
+        import std.format : FormatSpec;
+
+        char[] buf;
+        buf.reserve(100);
+        auto fmt = FormatSpec!char("%s");
+        toString((const(char)[] s) { buf ~= s; }, fmt);
+        auto trustedUnique(T)(T t) @trusted {
+            return assumeUnique(t);
+        }
+
+        return trustedUnique(buf);
+    }
 }
 
 /// #SPC-concept-gauges
@@ -159,5 +186,46 @@ struct Set {
 
     @property auto value() const {
         return value_;
+    }
+}
+
+/// The name of a host the tests where ran on.
+struct TestHost {
+    private Value name_;
+    private Hash hash_;
+
+    struct Value {
+        string payload;
+        alias payload this;
+    }
+
+    struct Hash {
+        ulong payload;
+        alias payload this;
+    }
+
+    this(Value n) {
+        this.name_ = n;
+        this.hash_ = TestHost.makeHash(n);
+    }
+
+    @property auto name() @safe pure nothrow const @nogc {
+        return name_;
+    }
+
+    @property auto toHash() @safe pure nothrow const @nogc {
+        return hash_;
+    }
+
+    /// Make a hash out of the raw data.
+    static private auto makeHash(string raw) @safe pure nothrow @nogc {
+        import std.digest.crc;
+
+        ulong value = 0;
+
+        if (raw is null)
+            return Hash(0);
+        ubyte[4] hash = crc32Of(raw);
+        return Hash(value ^ ((hash[0] << 24) | (hash[1] << 16) | (hash[2] << 8) | hash[3]));
     }
 }
