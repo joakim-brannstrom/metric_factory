@@ -34,7 +34,7 @@ void serialize(Writer, T)(scope Writer w, const ref T v) {
 }
 
 // #SPC-collection_serialiser
-void serialize(Writer)(Collector coll, scope Writer w) {
+void serialize(Writer)(scope Writer w, Collector coll) {
     import std.algorithm : map, joiner;
     import metric_factory.dataformat.statsd : serialize;
 
@@ -64,7 +64,7 @@ void serialize(Writer)(Collector coll, scope Writer w) {
  *
  * #SPC-collector_deserialize
  */
-void deserialise(const(char)[] line, Collector coll) nothrow {
+void deserialize(const(char)[] line, Collector coll) nothrow {
     import std.conv : to;
     import std.exception : Exception, collectException;
     import std.format : formattedRead;
@@ -179,21 +179,21 @@ unittest {
 
     auto coll = new Collector;
     // test counters
-    deserialise("foo1:75|c", coll);
-    deserialise("foo2:63|c|@0.1", coll);
+    deserialize("foo1:75|c", coll);
+    deserialize("foo2:63|c|@0.1", coll);
     assert(coll.counters.length == 2);
     assert(!coll.counters[BucketName("foo2")].data[0].sampleRate.isNull);
     assert(coll.counters[BucketName("foo2")].data[0].sampleRate.approxEqual(0.1));
 
     // test gauge
-    deserialise("foo:81|g", coll);
+    deserialize("foo:81|g", coll);
     assert(coll.gauges.length == 1);
 
     // test timer
-    deserialise("bar:1000|ms", coll);
+    deserialize("bar:1000|ms", coll);
     assert(coll.timers.length == 1);
 
     // test set
-    deserialise("gav:32|s", coll);
+    deserialize("gav:32|s", coll);
     assert(coll.sets.length == 1);
 }

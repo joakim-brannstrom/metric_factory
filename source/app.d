@@ -193,7 +193,7 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
             foreach (l; fin.byLine) {
                 import metric_factory.dataformat.statsd;
 
-                deserialise(l, coll);
+                deserialize(l, coll);
             }
         }
         catch (Exception e) {
