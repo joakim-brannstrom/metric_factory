@@ -48,8 +48,7 @@ int main(string[] args) {
     RunMode run_mode;
     OutputKind output_kind;
     TestHost[] test_hosts;
-    string output_file = format("result_%s-%s-%s_%sh_%sm_%ss", curr_t.year,
-            cast(ushort) curr_t.month, curr_t.day, curr_t.hour, curr_t.minute, curr_t.second);
+    string output_file;
 
     std.getopt.GetoptResult help_info;
     try {
@@ -85,6 +84,11 @@ int main(string[] args) {
     if (help) {
         printHelp(args, help_info);
         return 0;
+    }
+
+    if (output_file.length == 0) {
+        output_file = format("result_%s-%s-%s_%sh_%sm_%ss", curr_t.year,
+                cast(ushort) curr_t.month, curr_t.day, curr_t.hour, curr_t.minute, curr_t.second);
     }
 
     if (run_mode == RunMode.master && test_hosts.length == 0) {
@@ -315,23 +319,27 @@ void putCSV(Writer)(scope Writer w, ProcessResult res) {
     auto curr_d_txt = format("%s-%s-%s", curr_d.year, cast(ushort) curr_d.month, curr_d.day);
     auto curr_t_txt = format("%s:%s:%s", curr_d.hour, curr_d.minute, curr_d.second);
 
-    writeCSV(w, "description", "date", "time", "min", "max", "sum", "mean");
+    size_t index;
+
+    writeCSV(w, "index", "description", "host", "date", "time", "value",
+            "change", "min (ms)", "max (ms)", "sum (ms)", "mean (ms)");
     foreach (kv; res.timers.byKeyValue) {
-        writeCSV(w, kv.key, curr_d_txt, curr_t_txt,
+        index++;
+        writeCSV(w, kv.key, "", curr_d_txt, curr_t_txt, "", "",
                 kv.value.min.total!"msecs", kv.value.max.total!"msecs",
                 kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
     }
 
-    writeCSV(w, "description", "date", "time", "count");
     foreach (kv; res.counters.byKeyValue) {
+        index++;
         // TODO currently the changePerSecond isn't useful because this empties directly.
         //writeCSV(w, kv.key, kv.value.change, kv.value.changePerSecond);
-        writeCSV(w, kv.key, curr_d_txt, curr_t_txt, kv.value.change);
+        writeCSV(w, kv.key, "", curr_d_txt, curr_t_txt, "", kv.value.change);
     }
 
-    writeCSV(w, "description", "date", "time", "count");
     foreach (kv; res.gauges.byKeyValue) {
-        writeCSV(w, kv.key, curr_d_txt, curr_t_txt, kv.value.value);
+        index++;
+        writeCSV(w, kv.key, "", curr_d_txt, curr_t_txt, kv.value.value);
     }
 }
 
