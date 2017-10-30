@@ -280,7 +280,7 @@ T demux(MsgpackType type, T)(ref ubyte[] buf) {
 @("shall be the binary serialization of a collection")
 unittest {
     import std.array : appender;
-    import metric_factory.dataformat.statsd : statsDeserialise = deserialise;
+    import metric_factory.dataformat.statsd : statsDeserialise = deserialize;
 
     // Arrange
     auto coll = new Collector;
@@ -307,7 +307,7 @@ unittest {
 @("shall gracefully ignore invalid data when deserializing")
 unittest {
     import std.array : appender;
-    import metric_factory.dataformat.statsd : statdDeserialise = deserialise;
+    import metric_factory.dataformat.statsd : statdDeserialise = deserialize;
 
     auto coll = new Collector;
     auto app = appender!(ubyte[]);
