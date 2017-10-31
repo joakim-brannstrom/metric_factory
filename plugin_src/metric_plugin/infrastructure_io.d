@@ -53,6 +53,7 @@ void testSmallFilePerformance(MetricValueStore coll, const DirPath root, const l
     import std.algorithm : map, among;
     import std.array : array;
     import std.format : format;
+    import std.random : uniform;
     import std.utf;
 
     auto wa = WorkArea(root);
@@ -76,7 +77,9 @@ void testSmallFilePerformance(MetricValueStore coll, const DirPath root, const l
         auto sw = StopWatch(AutoStart.yes);
         foreach (i; 0 .. files_to_create) {
             auto fout = File(buildPath(rnd_testdir, i.to!string), "w");
-            iota(0, 10_000).each!(a => fout.write(a));
+            foreach (_; 0 .. 7000) {
+                fout.write(uniform!int);
+            }
         }
         sw.stop;
         coll.put(Timer.from(sw, format("create_%s_small_files_%s", files_to_create, path_n)));
