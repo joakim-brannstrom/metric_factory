@@ -12,6 +12,21 @@ import std.typecons : Nullable;
 struct BucketName {
     string payload;
     alias payload this;
+
+    this(string p) nothrow {
+        import std.algorithm : map;
+        import std.array : array;
+        import std.uni : isAlphaNum;
+        import std.utf : byDchar, toUTF8;
+
+        try {
+            this.payload = p.byDchar.map!(a => a.isAlphaNum ? cast(dchar) a
+                    : cast(dchar) '_').array().toUTF8;
+        }
+        catch (Exception e) {
+            this.payload = p;
+        }
+    }
 }
 
 /** Counters count the number of times an event occurs.
