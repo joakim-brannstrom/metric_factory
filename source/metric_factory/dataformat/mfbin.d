@@ -6,19 +6,21 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 This file contains the function to transform to/from the binary format that a
 collection can be represented in.
 
-Layers.
-
-0. raw stream of bytes
-1. Packet. Has a length and bytes.
-2. Simple data structures (this file, suffixed by D).
-3. Types from metric_factory.metric.types.
-
-Layers.
+# Layers
 0. ubyte stream.
 1. PacketType - Packets
     The PacketType is a uint8 so only 256 different packets are supported.
 
-Packets.
+# Stream specification
+This is the specification for the binary stream.
+
+x_0     PacketKind:TestHost
+x_1     TestHost
+x_n     PacketKind
+x_n+1   Packet matching the PacketKind.
+
+# Packets
+this are the packets and their specification.
 
 Counter
     str32 name
@@ -84,6 +86,86 @@ void serialize(Writer)(scope Writer w, Collector coll) {
     // dfmt on
 }
 
+void deserialize(ubyte[] buf, CollectorAggregate coll) {
+    import std.exception;
+    import msgpack_ll;
+
+    debug logger.trace(buf);
+
+    auto raw_kind = demux!(MsgpackType.uint8, ubyte)(buf);
+    if (raw_kind != PacketKind.testHost) {
+        throw new Exception("Malformed aggregate packet");
+    }
+
+    auto host = demuxTestHost(buf);
+    coll.put(host);
+
+    static struct HostAgg {
+        CollectorAggregate coll;
+        TestHost host;
+
+        void put(T)(const T v) {
+            coll.put(v, host);
+        }
+    }
+
+    auto host_agg = HostAgg(coll, host);
+
+    deserialize(buf, host_agg);
+}
+
+void deserialize(T)(ubyte[] buf, T coll) {
+    import std.conv : to;
+    import msgpack_ll;
+
+    debug logger.trace(buf);
+
+    while (buf.length != 0) {
+        debug logger.trace("bytes left:", buf.length);
+
+        auto raw_kind = demux!(MsgpackType.uint8, ubyte)(buf);
+        if (raw_kind > PacketKind.max) {
+            throw new Exception("Malformed packet kind: " ~ raw_kind.to!string);
+        }
+        auto kind = cast(PacketKind) raw_kind;
+
+        debug logger.trace("pkgkind: ", kind);
+
+        final switch (kind) {
+        case PacketKind.counter:
+            coll.put(demuxCounter(buf));
+            break;
+        case PacketKind.counterWithSampleRate:
+            coll.put(demuxCounterWithSampleRate(buf));
+            break;
+        case PacketKind.timer:
+            coll.put(demuxTimer(buf));
+            break;
+        case PacketKind.gauge:
+            coll.put(demuxGauge(buf));
+            break;
+        case PacketKind.set:
+            coll.put(demuxSet(buf));
+            break;
+        case PacketKind.testHost:
+            // not supported mid stream. throwing away the value.
+            demuxTestHost(buf);
+            break;
+        }
+    }
+}
+
+private:
+
+enum PacketKind : ubyte {
+    counter,
+    counterWithSampleRate,
+    timer,
+    gauge,
+    set,
+    testHost,
+}
+
 void serialize(Writer)(scope Writer w, const Timer v) {
     import msgpack_ll;
 
@@ -131,87 +213,6 @@ void serialize(Writer)(scope Writer w, const TestHost v) {
 
     mux(w, PacketKind.testHost);
     mux(w, v.name);
-}
-
-void deserialize(T)(ubyte[] buf, T coll) {
-    import msgpack_ll;
-
-    debug logger.trace(buf);
-
-    while (buf.length != 0) {
-        debug logger.trace("bytes left:", buf.length);
-
-        auto raw_kind = demux!(MsgpackType.uint8, ubyte)(buf);
-        if (raw_kind > PacketKind.max) {
-            logger.warning("Malformed packet kind: ", raw_kind);
-            break;
-        }
-        auto kind = cast(PacketKind) raw_kind;
-
-        debug logger.trace("pkgkind: ", kind);
-
-        final switch (kind) {
-        case PacketKind.counter:
-            coll.put(demuxCounter(buf));
-            break;
-        case PacketKind.counterWithSampleRate:
-            coll.put(demuxCounterWithSampleRate(buf));
-            break;
-        case PacketKind.timer:
-            coll.put(demuxTimer(buf));
-            break;
-        case PacketKind.gauge:
-            coll.put(demuxGauge(buf));
-            break;
-        case PacketKind.set:
-            coll.put(demuxSet(buf));
-            break;
-        case PacketKind.testHost:
-            // not supported mid stream. throwing away the value.
-            demuxTestHost(buf);
-            break;
-        }
-    }
-}
-
-void deserialize(ubyte[] buf, CollectorAggregate coll) {
-    import std.exception;
-    import msgpack_ll;
-
-    debug logger.trace(buf);
-
-    auto raw_kind = demux!(MsgpackType.uint8, ubyte)(buf);
-    if (raw_kind != PacketKind.testHost) {
-        logger.warning("Malformed aggregate packet");
-        throw new Exception("Malformed aggregate packet");
-    }
-
-    auto host = demuxTestHost(buf);
-    coll.put(host);
-
-    static struct HostAgg {
-        CollectorAggregate coll;
-        TestHost host;
-
-        void put(T)(const T v) {
-            coll.put(v, host);
-        }
-    }
-
-    auto host_agg = HostAgg(coll, host);
-
-    deserialize(buf, host_agg);
-}
-
-private:
-
-enum PacketKind : ubyte {
-    counter,
-    counterWithSampleRate,
-    timer,
-    gauge,
-    set,
-    testHost,
 }
 
 void mux(Writer)(scope Writer w, string name) {
