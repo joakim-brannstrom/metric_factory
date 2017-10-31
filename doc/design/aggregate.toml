@@ -1,0 +1,27 @@
+[REQ-gather_metric-aggregated]
+text = '''
+It is useful to both get an overview of the gathered metrics. But when
+interesting datapoints in the overview are analysed further the raw data that
+was used for the overview has to be available.
+
+How the metric types are aggregated is determined by their specification.
+'''
+
+[SPC-global_aggregated_metrics]
+partof = 'REQ-gather_metric-aggregated'
+text = '''
+The collection of metrics shall be globally aggregated.
+'''
+
+[SPC-per_host_aggregated_metrics]
+partof = 'REQ-gather_metric-aggregated'
+text = '''
+The collection of metrics shall be aggregated per test host.
+
+The name of the test host is a string.
+
+When a suite of tests are ran on a remote host the name of the host is provided
+by the _other side_.
+Preferably by the posix gethostname.
+Hopefully it will in all instances do the right thing.
+'''

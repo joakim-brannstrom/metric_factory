@@ -15,19 +15,46 @@ import metric_factory.metric.types;
 
 immutable Duration flushInterval = dur!"seconds"(10);
 
-/**
- *
- * Is a class because it is passed around as a reference.
- *
- * A unique bucket kind for each kind that is collected.
- */
-class Collector {
+interface MetricValueStore {
+    void put(const Counter a);
+    void put(const Gauge a);
+    void put(const Timer a);
+    void put(const Set a);
+}
+
+final class HostCollector : MetricValueStore {
+    private CollectorAggregate coll;
+    private TestHost host;
+
+    this(CollectorAggregate coll, const TestHost host) {
+        this.coll = coll;
+        this.host = host;
+    }
+
+    override void put(const Counter a) {
+        coll.put(a, host);
+    }
+
+    override void put(const Gauge a) {
+        coll.put(a, host);
+    }
+
+    override void put(const Timer a) {
+        coll.put(a, host);
+    }
+
+    override void put(const Set a) {
+        coll.put(a, host);
+    }
+}
+
+final class Collector : MetricValueStore {
     Bucket!(Counter)[BucketName] counters;
     Gauge[BucketName] gauges;
     Bucket!(Timer)[BucketName] timers;
     SetBucket[BucketName] sets;
 
-    void put(Counter a) {
+    override void put(const Counter a) {
         debug logger.trace(a);
 
         if (auto v = a.name in counters) {
@@ -39,7 +66,7 @@ class Collector {
         }
     }
 
-    void put(Gauge a) {
+    override void put(const Gauge a) {
         debug logger.trace(a);
 
         if (auto v = a.name in gauges) {
@@ -49,7 +76,7 @@ class Collector {
         }
     }
 
-    void put(Timer a) {
+    override void put(const Timer a) {
         debug logger.trace(a);
 
         if (auto v = a.name in timers) {
@@ -61,7 +88,7 @@ class Collector {
         }
     }
 
-    void put(Set a) {
+    override void put(const Set a) {
         debug logger.trace(a);
 
         if (auto v = a.name in sets) {
@@ -82,7 +109,83 @@ class Collector {
     }
 }
 
+/** Aggregation of multiple collections.
+ *
+ * Is a class because it is passed around as a reference.
+ *
+ * A unique bucket kind for each kind that is collected.
+ */
+final class CollectorAggregate : MetricValueStore {
+    TestHost[TestHost.Hash] testHosts;
+
+    /// Aggregation of all data received.
+    Collector globalAggregate;
+
+    /// Test data for a specific host.
+    Collector[TestHost.Hash] hostAggregate;
+
+    this() {
+        globalAggregate = new Collector;
+    }
+
+    override void put(const Counter a) {
+        globalAggregate.put(a);
+    }
+
+    override void put(const Gauge a) {
+        globalAggregate.put(a);
+    }
+
+    override void put(const Timer a) {
+        globalAggregate.put(a);
+    }
+
+    override void put(const Set a) {
+        globalAggregate.put(a);
+    }
+
+    void put(const Counter a, const TestHost host) {
+        put(host);
+        globalAggregate.put(a);
+        hostAggregate[host.toHash].put(a);
+    }
+
+    void put(const Gauge a, const TestHost host) {
+        put(host);
+        globalAggregate.put(a);
+        hostAggregate[host.toHash].put(a);
+    }
+
+    void put(const Timer a, const TestHost host) {
+        put(host);
+        globalAggregate.put(a);
+        hostAggregate[host.toHash].put(a);
+    }
+
+    void put(const Set a, const TestHost host) {
+        put(host);
+        globalAggregate.put(a);
+        hostAggregate[host.toHash].put(a);
+    }
+
+    void put(const TestHost a) {
+        if (a.toHash !in testHosts) {
+            debug logger.trace(a);
+            testHosts[a.toHash] = a;
+            hostAggregate[a.toHash] = new Collector;
+        }
+    }
+}
+
 struct ProcessResult {
+    /// Reverse map to translate a hash to a string.
+    TestHost.Value[TestHost.Hash] testHosts;
+
+    HostResult globalResult;
+    HostResult[TestHost.Hash] hostResult;
+}
+
+struct HostResult {
     TimerResult[BucketName] timers;
     Gauge[BucketName] gauges;
     CounterResult[BucketName] counters;
@@ -108,14 +211,30 @@ struct SetResult {
     size_t count;
 }
 
-ProcessResult process(Collector coll) {
+ProcessResult process(CollectorAggregate coll) {
+    ProcessResult res;
+
+    foreach (kv; coll.testHosts.byKeyValue) {
+        res.testHosts[kv.key] = kv.value.name;
+    }
+
+    res.globalResult = process(coll.globalAggregate);
+
+    foreach (host; coll.hostAggregate.byKeyValue) {
+        res.hostResult[host.key] = process(host.value);
+    }
+
+    return res;
+}
+
+HostResult process(Collector coll) {
     import std.array;
     import std.algorithm : sort, reduce, map;
     import core.time : dur, to;
     import std.conv : to;
     import std.math : ceil, approxEqual;
 
-    ProcessResult res;
+    HostResult res;
 
     foreach (kv; coll.timers.byKeyValue) {
         const auto cnt = kv.value.data.length;

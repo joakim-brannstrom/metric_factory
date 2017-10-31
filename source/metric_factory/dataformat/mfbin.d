@@ -40,6 +40,9 @@ Gauge
 Set
     str32 name
     uint64 value
+
+TestHost
+    str32 name
 */
 module metric_factory.dataformat.mfbin;
 
@@ -49,11 +52,15 @@ import logger = std.experimental.logger;
 
 import msgpack_ll : MsgpackType;
 
-import metric_factory.metric.collector : Collector;
+import metric_factory.metric.collector : Collector, CollectorAggregate;
 import metric_factory.metric.types;
 
-/// Mux a collection holding metric types (layer 3) down to a stream of bytes
-/// (layer 0).
+void serialize(Writer)(scope Writer w, Collector coll, TestHost host) {
+    serialize(w, host);
+    serialize(w, coll);
+}
+
+/// Serialize the metric types in the Collector to a stream of bytes.
 void serialize(Writer)(scope Writer w, Collector coll) {
     import std.algorithm : map, joiner;
     import std.range.primitives : put;
@@ -119,7 +126,14 @@ void serialize(Writer)(scope Writer w, const Set v) {
     mux!(MsgpackType.uint64)(w, v.value);
 }
 
-void deserialize(ubyte[] buf, Collector coll) {
+void serialize(Writer)(scope Writer w, const TestHost v) {
+    import msgpack_ll;
+
+    mux(w, PacketKind.testHost);
+    mux(w, v.name);
+}
+
+void deserialize(T)(ubyte[] buf, T coll) {
     import msgpack_ll;
 
     debug logger.trace(buf);
@@ -152,8 +166,41 @@ void deserialize(ubyte[] buf, Collector coll) {
         case PacketKind.set:
             coll.put(demuxSet(buf));
             break;
+        case PacketKind.testHost:
+            // not supported mid stream. throwing away the value.
+            demuxTestHost(buf);
+            break;
         }
     }
+}
+
+void deserialize(ubyte[] buf, CollectorAggregate coll) {
+    import std.exception;
+    import msgpack_ll;
+
+    debug logger.trace(buf);
+
+    auto raw_kind = demux!(MsgpackType.uint8, ubyte)(buf);
+    if (raw_kind != PacketKind.testHost) {
+        logger.warning("Malformed aggregate packet");
+        throw new Exception("Malformed aggregate packet");
+    }
+
+    auto host = demuxTestHost(buf);
+    coll.put(host);
+
+    static struct HostAgg {
+        CollectorAggregate coll;
+        TestHost host;
+
+        void put(T)(const T v) {
+            coll.put(v, host);
+        }
+    }
+
+    auto host_agg = HostAgg(coll, host);
+
+    deserialize(buf, host_agg);
 }
 
 private:
@@ -164,12 +211,14 @@ enum PacketKind : ubyte {
     timer,
     gauge,
     set,
+    testHost,
 }
 
 void mux(Writer)(scope Writer w, string name) {
     import msgpack_ll;
 
     ubyte[5] name_m;
+    // TODO a uint is potentially too big. standard says 2^32-1
     formatType!(MsgpackType.str32)(cast(uint) name.length, name_m);
     put(w, name_m[]);
     put(w, cast(ubyte[]) name);
@@ -237,13 +286,18 @@ Set demuxSet(ref ubyte[] buf) {
     return Set(name, v);
 }
 
-private void consume(MsgpackType type)(ref ubyte[] buf) {
+TestHost demuxTestHost(ref ubyte[] buf) {
+    auto name = demux!string(buf);
+    return TestHost(TestHost.Value(name));
+}
+
+void consume(MsgpackType type)(ref ubyte[] buf) {
     import msgpack_ll : DataSize;
 
     buf = buf[DataSize!type .. $];
 }
 
-private void consume(ref ubyte[] buf, size_t len) {
+void consume(ref ubyte[] buf, size_t len) {
     buf = buf[len .. $];
 }
 
@@ -280,25 +334,24 @@ T demux(MsgpackType type, T)(ref ubyte[] buf) {
 @("shall be the binary serialization of a collection")
 unittest {
     import std.array : appender;
-    import metric_factory.dataformat.statsd : statsDeserialise = deserialize;
 
     // Arrange
     auto coll = new Collector;
-    auto app = appender!(ubyte[]);
-    // counters
-    statsDeserialise("foo1:75|c", coll);
-    statsDeserialise("foo2:63|c|@0.1", coll);
+    coll.put(Counter(BucketName("foo1"), Counter.Change(75)));
+    coll.put(Counter(BucketName("foo2"), Counter.Change(63), Counter.SampleRate(0.1)));
     // gauge
-    statsDeserialise("foo:81|g", coll);
+    coll.put(Gauge(BucketName("foo"), Gauge.Value(81)));
     // timer
-    statsDeserialise("bar:1000|ms", coll);
+    coll.put(Timer(BucketName("bar"), Timer.Value(1000.dur!"msecs")));
     // set
-    statsDeserialise("gav:32|s", coll);
+    coll.put(Set(BucketName("gav"), Set.Value(32)));
+
+    auto app = appender!(ubyte[]);
 
     // Act
-    serialize(app, coll);
+    serialize(app, coll, TestHost(TestHost.Value("barf.some")));
 
-    auto coll_dec = new Collector;
+    auto coll_dec = new CollectorAggregate;
     deserialize(app.data, coll_dec);
 
     // Assert
@@ -318,4 +371,22 @@ unittest {
     //
     //auto coll_dec = new Collector;
     //deserialize(app.data, coll_dec);
+}
+
+@("shall be a serialized/deserialized TestHost")
+unittest {
+    import std.array : appender;
+
+    // arrange
+    auto app = appender!(ubyte[]);
+    auto in_host = TestHost(TestHost.Value("barf.some"));
+
+    // act
+    serialize(app, in_host);
+    auto buf = app.data;
+    auto kind = demux!(MsgpackType.uint8, ubyte)(buf);
+    auto out_host = demuxTestHost(buf);
+
+    assert(kind == PacketKind.testHost);
+    assert(in_host.toHash == out_host.toHash);
 }

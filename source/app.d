@@ -48,8 +48,7 @@ int main(string[] args) {
     RunMode run_mode;
     OutputKind output_kind;
     TestHost[] test_hosts;
-    string output_file = format("result_%s-%s-%s_%sh_%sm_%ss", curr_t.year,
-            cast(ushort) curr_t.month, curr_t.day, curr_t.hour, curr_t.minute, curr_t.second);
+    string output_file;
 
     std.getopt.GetoptResult help_info;
     try {
@@ -87,6 +86,11 @@ int main(string[] args) {
         return 0;
     }
 
+    if (output_file.length == 0) {
+        output_file = format("result_%s-%s-%s_%sh_%sm_%ss", curr_t.year,
+                cast(ushort) curr_t.month, curr_t.day, curr_t.hour, curr_t.minute, curr_t.second);
+    }
+
     if (run_mode == RunMode.master && test_hosts.length == 0) {
         logger.error("mode master requires at least one --host");
         return 1;
@@ -94,7 +98,7 @@ int main(string[] args) {
 
     logger.info("Registered plugins: ", registeredPlugins);
 
-    auto coll = new Collector;
+    auto coll = new CollectorAggregate;
 
     final switch (run_mode) {
     case RunMode.standalone:
@@ -146,7 +150,7 @@ void printHelp(string[] args, std.getopt.GetoptResult help_info) {
  *
  * #SPC-remote_test_host_execution
  */
-void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
+void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts) nothrow {
     import core.sys.posix.stdlib : mkdtemp;
     import std.format : format;
     import std.random : uniform;
@@ -220,17 +224,6 @@ void runMetricSuiteOnTestHosts(Collector coll, TestHost[] test_hosts) nothrow {
     }
 }
 
-auto runCmd(string[] cmds) {
-    import scriptlike : Args, runCollect;
-
-    Args a;
-    foreach (c; cmds) {
-        a.put(c);
-    }
-
-    return runCollect(a.data);
-}
-
 void listPlugins() {
     import metric_factory.plugin;
 
@@ -239,7 +232,7 @@ void listPlugins() {
     }
 }
 
-void standaloneMetrics(Collector coll) {
+void standaloneMetrics(CollectorAggregate coll) {
     import metric_factory.plugin;
 
     foreach (p; getPlugins) {
@@ -248,7 +241,7 @@ void standaloneMetrics(Collector coll) {
     }
 }
 
-void standaloneMetrics(Collector coll, size_t plugin_id) {
+void standaloneMetrics(CollectorAggregate coll, size_t plugin_id) {
     import metric_factory.plugin;
 
     if (plugin_id >= registeredPlugins) {
@@ -261,7 +254,7 @@ void standaloneMetrics(Collector coll, size_t plugin_id) {
     p.func(coll);
 }
 
-void remoteMetrics(Collector coll) {
+void remoteMetrics(CollectorAggregate coll) {
     import metric_factory.plugin;
 
     foreach (p; getPlugins) {
@@ -270,10 +263,11 @@ void remoteMetrics(Collector coll) {
     }
 }
 
-void toFile(Path output_file, Collector coll, const OutputKind kind) {
+void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
     import std.conv : to;
     import std.stdio : File;
     import std.path : extension, setExtension;
+    import metric_factory.plugin : hostname;
 
     static import metric_factory.dataformat.statsd;
 
@@ -294,17 +288,39 @@ void toFile(Path output_file, Collector coll, const OutputKind kind) {
     case OutputKind.statsd:
         metric_factory.dataformat.statsd.serialize((const(char)[] a) {
             fout.write(a);
-        }, coll);
+        }, coll.globalAggregate);
         break;
     case OutputKind.mfbin:
+        auto hname = metric_factory.metric.types.TestHost(
+                metric_factory.metric.types.TestHost.Value(hostname));
         metric_factory.dataformat.mfbin.serialize((const(ubyte)[] a) {
             fout.rawWrite(a);
-        }, coll);
+        }, coll.globalAggregate, hname);
         break;
     }
 }
 
 void putCSV(Writer)(scope Writer w, ProcessResult res) {
+    import metric_factory.csv;
+
+    size_t index;
+
+    writeCSV(w, "index", "description", "host", "date", "time", "value",
+            "change", "min (ms)", "max (ms)", "sum (ms)", "mean (ms)");
+    putCSV(w, res.globalResult, index, "");
+
+    foreach (ref host; res.hostResult.byKeyValue) {
+        if (auto host_name = host.key in res.testHosts) {
+            putCSV(w, host.value, index, cast(string)*host_name);
+        }
+    }
+}
+
+/** Write the result to a .csv-file.
+ *
+ * #SPC-collection_to_csv
+ */
+void putCSV(Writer)(scope Writer w, HostResult res, ref size_t index, string host) {
     import std.ascii : newline;
     import std.datetime;
     import std.format : formattedWrite, format;
@@ -315,23 +331,23 @@ void putCSV(Writer)(scope Writer w, ProcessResult res) {
     auto curr_d_txt = format("%s-%s-%s", curr_d.year, cast(ushort) curr_d.month, curr_d.day);
     auto curr_t_txt = format("%s:%s:%s", curr_d.hour, curr_d.minute, curr_d.second);
 
-    writeCSV(w, "description", "date", "time", "min", "max", "sum", "mean");
     foreach (kv; res.timers.byKeyValue) {
-        writeCSV(w, kv.key, curr_d_txt, curr_t_txt,
+        index++;
+        writeCSV(w, kv.key, host, curr_d_txt, curr_t_txt, "", "",
                 kv.value.min.total!"msecs", kv.value.max.total!"msecs",
                 kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
     }
 
-    writeCSV(w, "description", "date", "time", "count");
     foreach (kv; res.counters.byKeyValue) {
+        index++;
         // TODO currently the changePerSecond isn't useful because this empties directly.
         //writeCSV(w, kv.key, kv.value.change, kv.value.changePerSecond);
-        writeCSV(w, kv.key, curr_d_txt, curr_t_txt, kv.value.change);
+        writeCSV(w, kv.key, host, curr_d_txt, curr_t_txt, "", kv.value.change);
     }
 
-    writeCSV(w, "description", "date", "time", "count");
     foreach (kv; res.gauges.byKeyValue) {
-        writeCSV(w, kv.key, curr_d_txt, curr_t_txt, kv.value.value);
+        index++;
+        writeCSV(w, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
     }
 }
 
@@ -352,4 +368,15 @@ string pathToBinary() {
     }
 
     return path_to_binary;
+}
+
+auto runCmd(string[] cmds) {
+    import scriptlike : Args, runCollect;
+
+    Args a;
+    foreach (c; cmds) {
+        a.put(c);
+    }
+
+    return runCollect(a.data);
 }

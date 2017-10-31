@@ -28,7 +28,7 @@ shared static this() {
 }
 
 // #SPC-infrastructure_io-listdir
-void simpleListdir(Collector coll, DirPath root) nothrow {
+void simpleListdir(MetricValueStore coll, DirPath root) nothrow {
     try {
         Args a;
         a.put("ls");
@@ -49,7 +49,7 @@ void simpleListdir(Collector coll, DirPath root) nothrow {
  *
  * #SPC-infrastructure_io-smallfile_perf
  */
-void testSmallFilePerformance(Collector coll, const DirPath root, const long files_to_create) nothrow {
+void testSmallFilePerformance(MetricValueStore coll, const DirPath root, const long files_to_create) nothrow {
     import std.algorithm : map, among;
     import std.array : array;
     import std.format : format;

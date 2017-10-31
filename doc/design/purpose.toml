@@ -1,39 +1,11 @@
-# project purpose and definition documentation
-
-[REQ-purpose]
-text = '''
-The purpose of this project is to provide a framework for metrics.
-
-The main categories are:
- * infrastructure
- * workflow
-
-It is important that the data gatherer and data analyzer is separated.
-The data should be stored in an open format that is easy to analyse.
-Easy to use by other programs.
-'''
-
-[REQ-infrastructure]
+[REQ-collection_to_csv]
 partof = 'REQ-purpose'
 text = '''
-Metrics of the infrastructure.
+The one main motivation for providing an option to write the collection of data
+to a .csv-file is to make it easy to import to Excel and LibreOffice.
 
-The metrics should focus on:
- * performance
- * resource usage
-'''
-
-[REQ-workflow]
-partof = 'REQ-purpose'
-text = '''
-Metrics of workflow.
-
-The metrics should focus on:
- * completed runs of the defined workflow (throughput)
- * the complete time for finishing a workflow (delay)
- * time spent for workunits
-
-A workunit is the smallest part that is measured in a workflow.
+It is further important that the choice of columns make it easy to create
+different kind of charts for presentation.
 '''
 
 [REQ-data_gather_frequency]
@@ -49,8 +21,24 @@ It is PROBABLY important that those tests that test a shared resource do NOT
 run in parallell from many servers.
 '''
 
+[REQ-gather_metric]
+partof = 'REQ-purpose'
+text = '''
+Metrics are gathered by running a bundle of plugins that _send_ back data to
+the plugin runner.
+'''
+
+[REQ-infrastructure]
+partof = 'REQ-purpose'
+text = '''
+Metrics of the infrastructure.
+
+The metrics should focus on:
+ * performance
+ * resource usage
+'''
+
 [REQ-infrastructure-resource_usage]
-partof = 'REQ-infrastructure'
 text = '''
 This group of metrics shall capture the health of the infrastructure.
 
@@ -66,6 +54,135 @@ This kind of metric are:
  * programs that uses the most resources
  * I/O. such as disc, network
  * unix load average
+'''
+
+[REQ-parallell_test_host_execution]
+partof = 'REQ-purpose'
+text = '''
+Running the tests on remote hosts should be done in parallell to keep down the
+total runtime of the test suite.
+'''
+
+[REQ-plugin]
+partof = 'REQ-purpose'
+text = '''
+MetricFactory shall provide an API for registering plugins that perform metric
+gathering.
+
+These plugins are intended to be written by the user.
+'''
+
+[REQ-purpose]
+text = '''
+The purpose of this project is to provide a framework for metrics.
+
+The main categories are:
+ * infrastructure
+ * workflow
+
+It is important that the data gatherer and data analyzer is separated.
+The data should be stored in an open format that is easy to analyse.
+Easy to use by other programs.
+'''
+
+[REQ-remote_test_host_execution]
+partof = 'REQ-gather_metric'
+text = '''
+ditto
+'''
+
+[REQ-workflow]
+partof = 'REQ-purpose'
+text = '''
+Metrics of workflow.
+
+The metrics should focus on:
+ * completed runs of the defined workflow (throughput)
+ * the complete time for finishing a workflow (delay)
+ * time spent for workunits
+
+A workunit is the smallest part that is measured in a workflow.
+'''
+
+[SPC-collection_serialiser]
+partof = 'SPC-remote_test_host_execution'
+text = '''
+Serialization of the data in a collection shall support full and limited
+serialization.
+
+Full serialization is all the data that is in the container.
+This uses a custom file format.
+
+Limited serialization is to a text file containing the textual subset of the
+collection that are supported by StatsD.
+This is Counter, Gauge, Set and Timer.
+'''
+
+[SPC-collection_serialiser-test_host_name]
+text = '''
+To differentiate the measurments from each other the collected metrics shall
+have a hostname tag.
+'''
+
+[SPC-collection_to_csv]
+text = '''
+
+The columns shall be:
+ - index. A monotonic increasing number starting from 1.
+   This is intended to make it easy to create a chart by using this index for the X axis.
+ - description. Describes the test.
+   It is important that it is compatible with the backends.
+ - host. Name of the test host the test was ran on.
+   Makes it possible to do a deeper analysis of the gathered metrics.
+ - date.
+   It is easier to use the date and time in e.g Excel if they are separated in
+   two columns.
+ - time.
+ - value. The value of a gauge.
+ - change. The change of a counter.
+ - min, max, sum, mean. The times from a timer.
+'''
+
+[SPC-collector_deserialize]
+partof = 'SPC-remote_test_host_execution'
+text = '''
+The inverse of [[SPC-collection_serialiser]]
+'''
+
+[SPC-dataformat]
+partof = 'REQ-purpose'
+text = '''
+The user wants an easy format to import to Excel.
+The metric factory itself needs a nice format for serialiation/deserialise of
+test results from a remote host.
+
+The metric factor shall:
+ - support writing the result to a CSV file.
+ - support writing the result to a data file that store each value as a StatsD
+   compatible value.
+
+TODO maybe move this req.
+'''
+
+[SPC-infrastructure_io]
+partof = 'REQ-infrastructure-resource_usage'
+text = '''
+Gather statistics about I/O performance.
+'''
+
+[SPC-infrastructure_io-listdir]
+text = '''
+Gather statistics for listing a directory.
+
+Maybe this should test both the cold and warm listing?
+How can it be assured it is cold?
+'''
+
+[SPC-infrastructure_io-smallfile_perf]
+text = '''
+Gather statistics of the filesystem performance by creating and remove 10k files.
+
+The intention is to simulate "make all" and "make clean".
 '''
 
 [SPC-infrastructure_memory]
@@ -93,38 +210,7 @@ Statistics:
  * server
 '''
 
-[SPC-infrastructure_io]
-partof = 'REQ-infrastructure-resource_usage'
-text = '''
-Gather statistics about I/O performance.
-'''
-
-[SPC-infrastructure_io-listdir]
-partof = 'SPC-infrastructure_io'
-text = '''
-Gather statistics for listing a directory.
-
-Maybe this should test both the cold and warm listing?
-How can it be assured it is cold?
-'''
-
-[SPC-infrastructure_io-smallfile_perf]
-partof = 'SPC-infrastructure_io'
-text = '''
-Gather statistics of the filesystem performance by creating and remove 10k files.
-
-The intention is to simulate "make all" and "make clean".
-'''
-
-[REQ-parallell_test_host_execution]
-partof = 'REQ-purpose'
-text = '''
-Running the tests on remote hosts should be done in parallell to keep down the
-total runtime of the test suite.
-'''
-
 [SPC-remote_test_host_execution]
-partof = 'REQ-remote_test_host_execution'
 text = '''
 To keep the design simple to begin with the test results are stored in a local
 file that are retrieve by the master node.
@@ -142,36 +228,4 @@ scp host:/tmp/<random>/result.dat results_XXXXX
 
 # summarise the results
 deserialise the collected datafiles to a master collection
-'''
-
-[SPC-collection_serialiser]
-partof = 'SPC-remote_test_host_execution'
-text = '''
-Serialization of the data in a collection shall support full and limited serialization.
-
-Full serialization is all the data that is in the container.
-This uses a custom file format.
-
-Limited serialization is to a text file containing the textual subset of the
-collection that are supported by StatsD.
-This is Counter, Gauge, Set and Timer.
-'''
-
-[SPC-collector_deserialize]
-partof = 'SPC-remote_test_host_execution'
-text = '''
-The inverse of [[SPC-collection_serialiser]]
-'''
-
-[SPC-dataformat]
-partof = 'REQ-purpose'
-text = '''
-The user wants an easy format to import to Excel.
-The metric factory itself needs a nice format for serialiation/deserialise of test results from a remote host.
-
-The metric factor shall:
- - support writing the result to a CSV file.
- - support writing the result to a data file that store each value as a StatsD compatible value.
-
-TODO maybe move this req.
 '''

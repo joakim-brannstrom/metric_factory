@@ -12,7 +12,7 @@ import logger = std.experimental.logger;
 
 import metric_factory.types : Path, DirPath;
 
-alias MetricFunc = void function(Collector) nothrow;
+alias MetricFunc = void function(MetricValueStore) nothrow;
 
 struct Plugin {
     string name;
@@ -158,6 +158,30 @@ struct WorkArea {
         }
 
         return sw;
+    }
+}
+
+string hostname() nothrow {
+    import core.sys.posix.unistd : gethostname;
+
+    char[1024] raw_buf;
+
+    if (gethostname(raw_buf.ptr, raw_buf.length) == 0) {
+        import std.string : fromStringz;
+
+        char[] hname = raw_buf.ptr.fromStringz;
+        return hname.idup;
+    } else {
+        import std.random : uniform;
+        import std.format : format;
+
+        try {
+            return format("gethostname_error_%s", uniform(0, 10_000_000));
+        }
+        catch (Exception e) {
+        }
+
+        return "gethostname_error";
     }
 }
 
