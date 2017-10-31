@@ -333,7 +333,7 @@ void putCSV(Writer)(scope Writer w, HostResult res, ref size_t index, string hos
 
     foreach (kv; res.timers.byKeyValue) {
         index++;
-        writeCSV(w, kv.key, host, curr_d_txt, curr_t_txt, "", "",
+        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, "", "",
                 kv.value.min.total!"msecs", kv.value.max.total!"msecs",
                 kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
     }
@@ -342,12 +342,12 @@ void putCSV(Writer)(scope Writer w, HostResult res, ref size_t index, string hos
         index++;
         // TODO currently the changePerSecond isn't useful because this empties directly.
         //writeCSV(w, kv.key, kv.value.change, kv.value.changePerSecond);
-        writeCSV(w, kv.key, host, curr_d_txt, curr_t_txt, "", kv.value.change);
+        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, "", kv.value.change);
     }
 
     foreach (kv; res.gauges.byKeyValue) {
         index++;
-        writeCSV(w, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
+        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
     }
 }
 
