@@ -27,8 +27,9 @@ enum OutputKind {
 enum RunMode {
     standalone,
     remote,
-    plugin,
-    list_plugin,
+    plugin_id,
+    plugin_group,
+    plugin_list,
     master,
 }
 
@@ -49,6 +50,7 @@ int main(string[] args) {
     OutputKind output_kind;
     TestHost[] test_hosts;
     string output_file;
+    string[] plugin_group;
 
     std.getopt.GetoptResult help_info;
     try {
@@ -58,6 +60,7 @@ int main(string[] args) {
             "host", "host(s) to run the test suite on", &test_hosts,
             "run", "mode to run the tests in. Either standalone or from a remote collector "  ~ format("[%(%s|%)]", [EnumMembers!RunMode]), &run_mode,
             "plugin-id", "run the specific plugin with the ID", &plugin_id,
+            "plugin-group", "run the plugins belonging to the group", &plugin_group,
             "output-kind", "format to write the result in " ~ format("[%(%s|%)]", [EnumMembers!OutputKind]), &output_kind,
             "output", "file to write the result to", &output_file,
             );
@@ -104,16 +107,19 @@ int main(string[] args) {
     case RunMode.standalone:
         standaloneMetrics(coll);
         break;
-    case RunMode.plugin:
+    case RunMode.plugin_id:
         standaloneMetrics(coll, plugin_id);
         break;
+    case RunMode.plugin_group:
+        standaloneMetrics(coll, plugin_group);
+        break;
     case RunMode.remote:
-        remoteMetrics(coll);
+        standaloneMetrics(coll, plugin_group);
         break;
     case RunMode.master:
-        runMetricSuiteOnTestHosts(coll, test_hosts);
+        runMetricSuiteOnTestHosts(coll, test_hosts, plugin_group);
         break;
-    case RunMode.list_plugin:
+    case RunMode.plugin_list:
         listPlugins();
         break;
     }
@@ -122,7 +128,10 @@ int main(string[] args) {
     case RunMode.standalone:
         toFile(Path(output_file), coll, output_kind);
         break;
-    case RunMode.plugin:
+    case RunMode.plugin_id:
+        toFile(Path(output_file), coll, output_kind);
+        break;
+    case RunMode.plugin_group:
         toFile(Path(output_file), coll, output_kind);
         break;
     case RunMode.remote:
@@ -131,7 +140,7 @@ int main(string[] args) {
     case RunMode.master:
         toFile(Path(output_file), coll, output_kind);
         break;
-    case RunMode.list_plugin:
+    case RunMode.plugin_list:
         break;
     }
 
@@ -150,7 +159,8 @@ void printHelp(string[] args, std.getopt.GetoptResult help_info) {
  *
  * #SPC-remote_test_host_execution
  */
-void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts) nothrow {
+void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts,
+        const string[] in_plugin_group) nothrow {
     import core.sys.posix.stdlib : mkdtemp;
     import std.format : format;
     import std.random : uniform;
@@ -185,6 +195,9 @@ void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts) n
         return;
     }
 
+    string[] plugin_group_args = in_plugin_group.map!(a => ["--plugin-group",
+            a.idup]).joiner.array();
+
     foreach (host; test_hosts) {
         string rnd_hostdir;
         try {
@@ -199,8 +212,8 @@ void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts) n
             runCmd(["ssh", "-oStrictHostKeyChecking=no", host, "mkdir", rnd_hostdir]);
             runCmd(["scp", "-oStrictHostKeyChecking=no", "-B", this_bin,
                     format("%s:%s", host, rnd_hostbin)]);
-            runCmd(["ssh", "-oStrictHostKeyChecking=no", host, rnd_hostbin, "--run",
-                    "remote", "--output-kind", "mfbin", "--output", rnd_hostresult]);
+            runCmd(["ssh", "-oStrictHostKeyChecking=no", host, rnd_hostbin, "--run", "remote",
+                    "--output-kind", "mfbin", "--output", rnd_hostresult] ~ plugin_group_args);
             runCmd(["scp", "-oStrictHostKeyChecking=no", "-B", format("%s:%s",
                     host, rnd_hostresult), retrieved_result]);
 
@@ -228,7 +241,7 @@ void listPlugins() {
     import metric_factory.plugin;
 
     foreach (idx, p; getPlugins) {
-        logger.infof("Plugin %s: %s", idx, p.name);
+        logger.infof("Plugin %s (%s): %s", idx, p.group, p.name);
     }
 }
 
@@ -254,10 +267,10 @@ void standaloneMetrics(CollectorAggregate coll, size_t plugin_id) {
     p.func(coll);
 }
 
-void remoteMetrics(CollectorAggregate coll) {
+void standaloneMetrics(CollectorAggregate coll, string[] plugin_group) {
     import metric_factory.plugin;
 
-    foreach (p; getPlugins) {
+    foreach (p; getPlugins(plugin_group)) {
         logger.info("run plugin: ", p.name);
         p.func(coll);
     }

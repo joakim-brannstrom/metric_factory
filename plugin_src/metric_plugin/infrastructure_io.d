@@ -22,12 +22,14 @@ shared static this() {
     // dfmt off
     buildPlugin
         .description("List files in current directory")
+        .group("builtin")
         .func((coll) {
             simpleListdir(coll, DirPath("."));
         })
     .register;
     buildPlugin
         .description("Create and remove 10k small files")
+        .group("builtin")
         .func((coll) {
             testSmallFilePerformance(coll, DirPath("."), 10_000);
         })

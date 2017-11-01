@@ -64,6 +64,23 @@ Plugin[] getPlugins() nothrow {
     return (cast(Appender!(Plugin[])) registered_plugins).data;
 }
 
+Plugin[] getPlugins(string[] groups) nothrow {
+    import std.algorithm : canFind;
+
+    if (groups.length == 0)
+        return getPlugins();
+
+    Appender!(Plugin[]) rval;
+
+    auto all_p = (cast(Appender!(Plugin[])) registered_plugins).data;
+    foreach (ref p; all_p) {
+        if (groups.canFind(p.group))
+            rval.put(p);
+    }
+
+    return rval.data;
+}
+
 struct ShellScriptResult {
     Duration script;
     Duration cleanup;
