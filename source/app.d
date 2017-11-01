@@ -267,6 +267,7 @@ void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
     import std.conv : to;
     import std.stdio : File;
     import std.path : extension, setExtension;
+    import metric_factory.csv : putCSV;
     import metric_factory.plugin : hostname;
 
     static import metric_factory.dataformat.statsd;
@@ -297,57 +298,6 @@ void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
             fout.rawWrite(a);
         }, coll.globalAggregate, hname);
         break;
-    }
-}
-
-void putCSV(Writer)(scope Writer w, ProcessResult res) {
-    import metric_factory.csv;
-
-    size_t index;
-
-    writeCSV(w, "index", "description", "host", "date", "time", "value",
-            "change", "min (ms)", "max (ms)", "sum (ms)", "mean (ms)");
-    putCSV(w, res.globalResult, index, "");
-
-    foreach (ref host; res.hostResult.byKeyValue) {
-        if (auto host_name = host.key in res.testHosts) {
-            putCSV(w, host.value, index, cast(string)*host_name);
-        }
-    }
-}
-
-/** Write the result to a .csv-file.
- *
- * #SPC-collection_to_csv
- */
-void putCSV(Writer)(scope Writer w, HostResult res, ref size_t index, string host) {
-    import std.ascii : newline;
-    import std.datetime;
-    import std.format : formattedWrite, format;
-    import std.range.primitives : put;
-    import metric_factory.csv;
-
-    auto curr_d = Clock.currTime;
-    auto curr_d_txt = format("%s-%s-%s", curr_d.year, cast(ushort) curr_d.month, curr_d.day);
-    auto curr_t_txt = format("%s:%s:%s", curr_d.hour, curr_d.minute, curr_d.second);
-
-    foreach (kv; res.timers.byKeyValue) {
-        index++;
-        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, "", "",
-                kv.value.min.total!"msecs", kv.value.max.total!"msecs",
-                kv.value.sum.total!"msecs", kv.value.mean.total!"msecs");
-    }
-
-    foreach (kv; res.counters.byKeyValue) {
-        index++;
-        // TODO currently the changePerSecond isn't useful because this empties directly.
-        //writeCSV(w, kv.key, kv.value.change, kv.value.changePerSecond);
-        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, "", kv.value.change);
-    }
-
-    foreach (kv; res.gauges.byKeyValue) {
-        index++;
-        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
     }
 }
 
