@@ -17,6 +17,37 @@ alias MetricFunc = void function(MetricValueStore) nothrow;
 struct Plugin {
     string name;
     MetricFunc func;
+    string group;
+}
+
+/// Use to build a plugin finishing with registering it.
+auto buildPlugin() {
+    static struct BuildPlugin {
+        private string desc_;
+        private string group_;
+        private MetricFunc func_;
+
+        auto description(string v) {
+            desc_ = v;
+            return this;
+        }
+
+        auto group(string v) {
+            group_ = v;
+            return this;
+        }
+
+        auto func(MetricFunc v) {
+            func_ = v;
+            return this;
+        }
+
+        void register() {
+            registerPlugin(Plugin(desc_, func_, group_));
+        }
+    }
+
+    return BuildPlugin();
 }
 
 void registerPlugin(Plugin f) {
@@ -31,6 +62,23 @@ size_t registeredPlugins() nothrow @nogc {
 
 Plugin[] getPlugins() nothrow {
     return (cast(Appender!(Plugin[])) registered_plugins).data;
+}
+
+Plugin[] getPlugins(string[] groups) nothrow {
+    import std.algorithm : canFind;
+
+    if (groups.length == 0)
+        return getPlugins();
+
+    Appender!(Plugin[]) rval;
+
+    auto all_p = (cast(Appender!(Plugin[])) registered_plugins).data;
+    foreach (ref p; all_p) {
+        if (groups.canFind(p.group))
+            rval.put(p);
+    }
+
+    return rval.data;
 }
 
 struct ShellScriptResult {
