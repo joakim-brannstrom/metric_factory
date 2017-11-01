@@ -7,9 +7,12 @@ license "BSL-1.0"
 dependency "metric_factory:scriptlike" version="*"
 dependency "metric_factory:msgpack-ll" version="*"
 
+dependency "metric_factory:d2sqlite3" version="*"
+subConfigurations "metric_factory:d2sqlite3" "all-included"
+
 subPackage "./scriptlike/"
 subPackage "./msgpack-ll/"
+subPackage "./d2sqlite3/"
 
 targetPath "build"
-
 sourcePaths "source" "plugin_src" "user_plugin_src"
