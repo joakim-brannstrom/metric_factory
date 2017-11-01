@@ -22,10 +22,10 @@ import metric_factory.types;
 import scriptlike;
 
 shared static this() {
-    registerPlugin(Plugin("Users logged in", &measureUsers));
-    registerPlugin(Plugin("Loadavg", &measureLoadAvg));
-    registerPlugin(Plugin("Active process", &measureActiveProcesses));
-    registerPlugin(Plugin("Program resource usage", &measurePrograms));
+    buildPlugin.description("Users logged in").func(&measureUsers).register;
+    buildPlugin.description("Loadavg").func(&measureLoadAvg).register;
+    buildPlugin.description("Active process").func(&measureActiveProcesses).register;
+    buildPlugin.description("Program resource usage").func(&measurePrograms).register;
 }
 
 void measureUsers(MetricValueStore coll) nothrow {

@@ -19,12 +19,20 @@ import metric_factory.types;
 import scriptlike;
 
 shared static this() {
-    registerPlugin(Plugin("List files in current directory", (coll) {
+    // dfmt off
+    buildPlugin
+        .description("List files in current directory")
+        .func((coll) {
             simpleListdir(coll, DirPath("."));
-        }));
-    registerPlugin(Plugin("Create and remove small files", (coll) {
+        })
+    .register;
+    buildPlugin
+        .description("Create and remove 10k small files")
+        .func((coll) {
             testSmallFilePerformance(coll, DirPath("."), 10_000);
-        }));
+        })
+    .register;
+    // dfmt on
 }
 
 // #SPC-infrastructure_io-listdir
