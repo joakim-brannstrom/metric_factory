@@ -49,10 +49,28 @@ final class HostCollector : MetricValueStore {
 }
 
 final class Collector : MetricValueStore {
+    import std.algorithm : map, joiner;
+
     Bucket!(Counter)[BucketName] counters;
     Gauge[BucketName] gauges;
     Bucket!(Timer)[BucketName] timers;
     SetBucket[BucketName] sets;
+
+    auto timerRange() {
+        return timers.byValue.map!(a => a.data).joiner;
+    }
+
+    auto counterRange() {
+        return counters.byValue.map!(a => a.data).joiner;
+    }
+
+    auto gaugeRange() {
+        return gauges.byValue;
+    }
+
+    auto setRange() {
+        return sets.byKeyValue.map!(a => Set(a.key, Set.Value(a.value.countUnique)));
+    }
 
     override void put(const Counter a) {
         debug logger.trace(a);

@@ -11,6 +11,7 @@ import logger = std.experimental.logger;
 
 import metric_factory.metric;
 import metric_factory.types;
+import metric_factory.sqlite3;
 
 /// Run metric tests on the host.
 struct TestHost {
@@ -45,6 +46,7 @@ int main(string[] args) {
 
     bool help;
     bool debug_;
+    bool output_to_db;
     size_t plugin_id;
     RunMode run_mode;
     OutputKind output_kind;
@@ -61,8 +63,9 @@ int main(string[] args) {
             "run", "mode to run the tests in. Either standalone or from a remote collector "  ~ format("[%(%s|%)]", [EnumMembers!RunMode]), &run_mode,
             "plugin-id", "run the specific plugin with the ID", &plugin_id,
             "plugin-group", "run the plugins belonging to the group", &plugin_group,
-            "output-kind", "format to write the result in " ~ format("[%(%s|%)]", [EnumMembers!OutputKind]), &output_kind,
             "output", "file to write the result to", &output_file,
+            "output-kind", "format to write the result in " ~ format("[%(%s|%)]", [EnumMembers!OutputKind]), &output_kind,
+            "output-to-db", "put the results into a sqlite3 DB", &output_to_db,
             );
         // dfmt on
         help = help_info.helpWanted;
@@ -99,6 +102,15 @@ int main(string[] args) {
         return 1;
     }
 
+    Database db;
+    try {
+        db = Database.make;
+    }
+    catch (Exception e) {
+        logger.error(e.msg);
+        return 1;
+    }
+
     logger.info("Registered plugins: ", registeredPlugins);
 
     auto coll = new CollectorAggregate;
@@ -127,18 +139,26 @@ int main(string[] args) {
     final switch (run_mode) {
     case RunMode.standalone:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.plugin_id:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.plugin_group:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.remote:
         toFile(Path(output_file), coll, OutputKind.mfbin);
         break;
     case RunMode.master:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.plugin_list:
         break;
@@ -311,6 +331,19 @@ void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
             fout.rawWrite(a);
         }, coll.globalAggregate, hname);
         break;
+    }
+}
+
+void toDatabase(CollectorAggregate coll, ref Database db) {
+    import metric_factory.plugin : getPlugins;
+    import metric_factory.types : Timestamp;
+
+    const ts = Timestamp.make;
+    db.put(ts, coll.globalAggregate);
+
+    foreach (c; coll.hostAggregate.byKeyValue) {
+        auto test_host = c.key in coll.testHosts;
+        db.put(*test_host, ts, c.value);
     }
 }
 
