@@ -183,7 +183,7 @@ struct Timer {
  */
 struct Set {
     struct Value {
-        ulong payload;
+        long payload;
         alias payload this;
     }
 

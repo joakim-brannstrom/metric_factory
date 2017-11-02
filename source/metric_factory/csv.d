@@ -8,6 +8,7 @@ This module contains functions for generating csv files.
 module metric_factory.csv;
 
 import metric_factory.metric : ProcessResult, HostResult;
+import metric_factory.types : Timestamp;
 
 /// Write a line as CSV
 void writeCSV(Writer, T...)(scope Writer w, auto ref T args) {
@@ -34,16 +35,20 @@ void writeCSV(Writer, T...)(scope Writer w, auto ref T args) {
     put(w, newline);
 }
 
-void putCSV(Writer)(scope Writer w, ProcessResult res) {
-    size_t index;
-
+void putCSVHeader(Writer)(scope Writer w) {
     writeCSV(w, "index", "description", "host", "date", "time", "value",
             "change", "min (ms)", "max (ms)", "sum (ms)", "mean (ms)");
-    putCSV(w, res.globalResult, index, "");
+}
+
+void putCSV(Writer)(scope Writer w, ProcessResult res, ref size_t index) {
+    import std.datetime : Clock;
+
+    auto curr_d = Clock.currTime.Timestamp;
+    putCSV(w, curr_d, res.globalResult, index, "");
 
     foreach (ref host; res.hostResult.byKeyValue) {
         if (auto host_name = host.key in res.testHosts) {
-            putCSV(w, host.value, index, cast(string)*host_name);
+            putCSV(w, curr_d, host.value, index, cast(string)*host_name);
         }
     }
 }
@@ -52,15 +57,16 @@ void putCSV(Writer)(scope Writer w, ProcessResult res) {
  *
  * #SPC-collection_to_csv
  */
-void putCSV(Writer)(scope Writer w, HostResult res, ref size_t index, string host) {
+void putCSV(Writer)(scope Writer w, const Timestamp raw_ts, HostResult res,
+        ref size_t index, string host) {
     import std.ascii : newline;
-    import std.datetime;
     import std.format : formattedWrite, format;
     import std.range.primitives : put;
 
-    auto curr_d = Clock.currTime;
-    auto curr_d_txt = format("%s-%s-%s", curr_d.year, cast(ushort) curr_d.month, curr_d.day);
-    auto curr_t_txt = format("%s:%s:%s", curr_d.hour, curr_d.minute, curr_d.second);
+    auto ts = raw_ts.toLocalTime;
+
+    auto curr_d_txt = format("%04s-%02s-%02s", ts.year, cast(ushort) ts.month, ts.day);
+    auto curr_t_txt = format("%02s:%02s:%02s", ts.hour, ts.minute, ts.second);
 
     foreach (kv; res.timers.byKeyValue) {
         index++;

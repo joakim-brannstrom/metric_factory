@@ -22,3 +22,5 @@ target/
 # python
 *.pyc
 
+*.sqlite3
+*.csv

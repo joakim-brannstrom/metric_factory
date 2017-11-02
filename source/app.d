@@ -11,6 +11,7 @@ import logger = std.experimental.logger;
 
 import metric_factory.metric;
 import metric_factory.types;
+import metric_factory.sqlite3;
 
 /// Run metric tests on the host.
 struct TestHost {
@@ -31,6 +32,7 @@ enum RunMode {
     plugin_group,
     plugin_list,
     master,
+    db_to_csv
 }
 
 int main(string[] args) {
@@ -45,11 +47,13 @@ int main(string[] args) {
 
     bool help;
     bool debug_;
+    bool output_to_db;
     size_t plugin_id;
     RunMode run_mode;
     OutputKind output_kind;
     TestHost[] test_hosts;
     string output_file;
+    string db_file;
     string[] plugin_group;
 
     std.getopt.GetoptResult help_info;
@@ -57,12 +61,14 @@ int main(string[] args) {
         // dfmt off
         help_info = std.getopt.getopt(args,
             "d|debug", "run in debug mode when logging", &debug_,
+            "db", "sqlite3 database to use", &db_file,
             "host", "host(s) to run the test suite on", &test_hosts,
             "run", "mode to run the tests in. Either standalone or from a remote collector "  ~ format("[%(%s|%)]", [EnumMembers!RunMode]), &run_mode,
             "plugin-id", "run the specific plugin with the ID", &plugin_id,
             "plugin-group", "run the plugins belonging to the group", &plugin_group,
-            "output-kind", "format to write the result in " ~ format("[%(%s|%)]", [EnumMembers!OutputKind]), &output_kind,
             "output", "file to write the result to", &output_file,
+            "output-kind", "format to write the result in " ~ format("[%(%s|%)]", [EnumMembers!OutputKind]), &output_kind,
+            "output-to-db", "put the results into a sqlite3 DB", &output_to_db,
             );
         // dfmt on
         help = help_info.helpWanted;
@@ -99,6 +105,15 @@ int main(string[] args) {
         return 1;
     }
 
+    Database db;
+    try {
+        db = Database.make(Path(db_file));
+    }
+    catch (Exception e) {
+        logger.error(e.msg);
+        return 1;
+    }
+
     logger.info("Registered plugins: ", registeredPlugins);
 
     auto coll = new CollectorAggregate;
@@ -122,25 +137,37 @@ int main(string[] args) {
     case RunMode.plugin_list:
         listPlugins();
         break;
+    case RunMode.db_to_csv:
+        runDatabaseToCsv(Path(output_file), db);
     }
 
     final switch (run_mode) {
     case RunMode.standalone:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.plugin_id:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.plugin_group:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.remote:
         toFile(Path(output_file), coll, OutputKind.mfbin);
         break;
     case RunMode.master:
         toFile(Path(output_file), coll, output_kind);
+        if (output_to_db)
+            toDatabase(coll, db);
         break;
     case RunMode.plugin_list:
+        break;
+    case RunMode.db_to_csv:
         break;
     }
 
@@ -276,11 +303,40 @@ void standaloneMetrics(CollectorAggregate coll, string[] plugin_group) {
     }
 }
 
+void runDatabaseToCsv(Path output_file, ref Database db) {
+    import std.conv : to;
+    import std.stdio : File;
+    import std.path : extension, setExtension;
+    import metric_factory.csv : putCSV, putCSVHeader;
+    import metric_factory.plugin : hostname;
+    import metric_factory.metric.types : TestHost;
+
+    output_file = Path(output_file.setExtension("csv"));
+    auto fout = File(output_file, "w");
+
+    putCSVHeader((const(char)[] a) { fout.write(a); });
+    size_t index;
+
+    foreach (metric; db.getMetrics) {
+        auto coll = db.get(metric.id);
+
+        auto res = process(coll);
+
+        auto raw_test_host = db.getTestHost(metric.testHostId);
+
+        TestHost test_host;
+        if (!raw_test_host.isNull)
+            test_host = raw_test_host.get;
+
+        putCSV((const(char)[] a) { fout.write(a); }, metric.timestamp, res, index, test_host.name);
+    }
+}
+
 void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
     import std.conv : to;
     import std.stdio : File;
     import std.path : extension, setExtension;
-    import metric_factory.csv : putCSV;
+    import metric_factory.csv : putCSV, putCSVHeader;
     import metric_factory.plugin : hostname;
 
     static import metric_factory.dataformat.statsd;
@@ -297,7 +353,9 @@ void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
     final switch (kind) {
     case OutputKind.csv:
         auto res = process(coll);
-        putCSV((const(char)[] a) { fout.write(a); }, res);
+        putCSVHeader((const(char)[] a) { fout.write(a); });
+        size_t index;
+        putCSV((const(char)[] a) { fout.write(a); }, res, index);
         break;
     case OutputKind.statsd:
         metric_factory.dataformat.statsd.serialize((const(char)[] a) {
@@ -311,6 +369,19 @@ void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
             fout.rawWrite(a);
         }, coll.globalAggregate, hname);
         break;
+    }
+}
+
+void toDatabase(CollectorAggregate coll, ref Database db) {
+    import metric_factory.plugin : getPlugins;
+    import metric_factory.types : Timestamp;
+
+    const ts = Timestamp.make;
+    db.put(ts, coll.globalAggregate);
+
+    foreach (c; coll.hostAggregate.byKeyValue) {
+        auto test_host = c.key in coll.testHosts;
+        db.put(*test_host, ts, c.value);
     }
 }
 

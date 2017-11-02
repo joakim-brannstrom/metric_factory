@@ -80,3 +80,14 @@ struct AbsolutePath {
         return payload;
     }
 }
+
+struct Timestamp {
+    import std.datetime : SysTime, Clock;
+
+    SysTime payload;
+    alias payload this;
+
+    static auto make() {
+        return Timestamp(Clock.currTime.toUTC);
+    }
+}

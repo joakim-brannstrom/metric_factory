@@ -1,0 +1,60 @@
+@startuml
+class metric {
+    id
+    test_hostid
+    timestamp
+}
+
+class bucket {
+    id
+    name
+}
+
+class test_host {
+    id
+    host
+}
+
+class counter_t {
+    id
+    bucketid
+    metricid
+    change
+    sampleRate
+}
+
+class gauge_t {
+    id
+    bucketid
+    metricid
+    value
+}
+
+class timer_t {
+    id
+    bucketid
+    metricid
+    elapsed_ms
+}
+
+class set_t {
+    id
+    bucketid
+    metricid
+    value
+}
+
+metric ..> test_host
+
+counter_t "*" ---> metric
+counter_t "*" --> bucket
+
+gauge_t "*" ---> metric
+gauge_t "*" --> bucket
+
+timer_t "*" ---> metric
+timer_t "*" --> bucket
+
+set_t "*" ---> metric
+set_t "*" --> bucket
+@enduml
