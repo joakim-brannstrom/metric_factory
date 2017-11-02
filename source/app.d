@@ -32,6 +32,7 @@ enum RunMode {
     plugin_group,
     plugin_list,
     master,
+    db_to_csv
 }
 
 int main(string[] args) {
@@ -134,6 +135,8 @@ int main(string[] args) {
     case RunMode.plugin_list:
         listPlugins();
         break;
+    case RunMode.db_to_csv:
+        runDatabaseToCsv(Path(output_file), db);
     }
 
     final switch (run_mode) {
@@ -161,6 +164,8 @@ int main(string[] args) {
             toDatabase(coll, db);
         break;
     case RunMode.plugin_list:
+        break;
+    case RunMode.db_to_csv:
         break;
     }
 
@@ -296,11 +301,40 @@ void standaloneMetrics(CollectorAggregate coll, string[] plugin_group) {
     }
 }
 
+void runDatabaseToCsv(Path output_file, ref Database db) {
+    import std.conv : to;
+    import std.stdio : File;
+    import std.path : extension, setExtension;
+    import metric_factory.csv : putCSV, putCSVHeader;
+    import metric_factory.plugin : hostname;
+    import metric_factory.metric.types : TestHost;
+
+    output_file = Path(output_file.setExtension("csv"));
+    auto fout = File(output_file, "w");
+
+    putCSVHeader((const(char)[] a) { fout.write(a); });
+    size_t index;
+
+    foreach (metric; db.getMetrics) {
+        auto coll = db.get(metric.id);
+
+        auto res = process(coll);
+
+        auto raw_test_host = db.getTestHost(metric.testHostId);
+
+        TestHost test_host;
+        if (!raw_test_host.isNull)
+            test_host = raw_test_host.get;
+
+        putCSV((const(char)[] a) { fout.write(a); }, metric.timestamp, res, index, test_host.name);
+    }
+}
+
 void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
     import std.conv : to;
     import std.stdio : File;
     import std.path : extension, setExtension;
-    import metric_factory.csv : putCSV;
+    import metric_factory.csv : putCSV, putCSVHeader;
     import metric_factory.plugin : hostname;
 
     static import metric_factory.dataformat.statsd;
@@ -317,7 +351,9 @@ void toFile(Path output_file, CollectorAggregate coll, const OutputKind kind) {
     final switch (kind) {
     case OutputKind.csv:
         auto res = process(coll);
-        putCSV((const(char)[] a) { fout.write(a); }, res);
+        putCSVHeader((const(char)[] a) { fout.write(a); });
+        size_t index;
+        putCSV((const(char)[] a) { fout.write(a); }, res, index);
         break;
     case OutputKind.statsd:
         metric_factory.dataformat.statsd.serialize((const(char)[] a) {

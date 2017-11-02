@@ -42,3 +42,12 @@ unittest {
     res = runCollect(cmd ~ ` "SELECT count(*) FROM set_t"`);
     assert(res.strip == "2");
 }
+
+// This test is dependent that the previous one has executed first
+@("shall convert a sqlite3 db to a CSV file")
+unittest {
+    import scriptlike;
+
+    auto res = runCollect("../build/metric_factory -d --run db_to_csv");
+    writeln(res);
+}

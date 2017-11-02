@@ -5,6 +5,8 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 */
 module metric_factory.sqlite3;
 
+import std.datetime : SysTime;
+
 import logger = std.experimental.logger;
 
 import d2sqlite3 : sqlDatabase = Database;
@@ -20,6 +22,11 @@ struct MetricId {
 }
 
 struct BucketId {
+    long payload;
+    alias payload this;
+}
+
+struct TestHostId {
     long payload;
     alias payload this;
 }
@@ -52,6 +59,7 @@ struct BucketId {
  * interchangeably.
  */
 struct Database {
+    import std.typecons : Tuple, Nullable;
     import metric_factory.metric.types;
 
     private sqlDatabase db;
@@ -68,9 +76,9 @@ struct Database {
         import d2sqlite3;
 
         auto stmt = db.prepare("INSERT INTO metric (timestamp) VALUES (:timestamp)");
-        stmt.bind(":timestamp", format("%s-%s-%sT%s:%s:%s.%s", ts.year,
-                cast(ushort) ts.month, ts.day, ts.hour, ts.minute, ts.second,
-                ts.fracSecs.total!"msecs"));
+        stmt.bind(":timestamp", format("%04s-%02s-%02sT%02s:%02s:%02s.%s",
+                ts.year, cast(ushort) ts.month, ts.day, ts.hour, ts.minute,
+                ts.second, ts.fracSecs.total!"msecs"));
         stmt.execute;
         const long metric_id = db.lastInsertRowid;
         stmt.reset;
@@ -94,10 +102,11 @@ struct Database {
         }
 
         stmt = db.prepare(
-                "INSERT INTO counter_t (metricid, bucketid, change) VALUES (:mid, :bid, :value)");
+                "INSERT INTO counter_t (metricid, bucketid, change, sampleRate) VALUES (:mid, :bid, :value, :sample_r)");
         foreach (v; coll.counterRange) {
             const long bucket_id = put(v.name);
-            stmt.bindAll(metric_id, bucket_id, v.change.payload);
+            stmt.bindAll(metric_id, bucket_id, v.change.payload,
+                    v.sampleRate.isNull ? 1.0 : v.sampleRate.get.payload);
             stmt.execute;
             stmt.reset;
         }
@@ -131,6 +140,13 @@ struct Database {
         }
     }
 
+    BucketName get(BucketId bid) {
+        auto bucket_stmt = db.prepare("SELECT name FROM bucket WHERE bucket.id == :bid");
+        bucket_stmt.bind(":bid", bid.payload);
+        auto res = bucket_stmt.execute;
+        return BucketName(res.oneValue!string);
+    }
+
     void put(const TestHost host, const Timestamp ts, Collector coll) {
         import d2sqlite3;
 
@@ -145,6 +161,84 @@ struct Database {
         stmt = db.prepare("UPDATE metric SET test_hostid = :thid WHERE metric.id == :mid");
         stmt.bindAll(test_hostid, cast(long) metric_id);
         stmt.execute;
+    }
+
+    alias GetMetricResult = Tuple!(MetricId, "id", TestHostId, "testHostId",
+            Timestamp, "timestamp");
+
+    /// Returns: all stored metric ID.
+    GetMetricResult[] getMetrics() {
+        import std.array;
+        import std.algorithm : map;
+        import d2sqlite3;
+
+        // maybe order by timestamp?
+
+        auto stmt = db.prepare("SELECT id,test_hostid,timestamp FROM metric ORDER BY id");
+        auto res = stmt.execute;
+
+        return res.map!(a => GetMetricResult(MetricId(a.peek!long(0)),
+                TestHostId(a.peek!long(1)), Timestamp(a.peek!string(2).fromSqLiteDateTime))).array();
+    }
+
+    Nullable!TestHost getTestHost(TestHostId id) {
+        import d2sqlite3;
+
+        typeof(return) rval;
+
+        auto stmt = db.prepare("SELECT host FROM test_host WHERE id == :id");
+        stmt.bind(":id", id.payload);
+        auto res = stmt.execute;
+
+        if (!res.empty) {
+            rval = TestHost(TestHost.Value(res.oneValue!string));
+        }
+
+        return rval;
+    }
+
+    Collector get(MetricId mid) {
+        import core.time : dur;
+        import d2sqlite3;
+        import metric_factory.metric.collector : Collector;
+
+        auto coll = new Collector;
+
+        auto stmt = db.prepare("SELECT bucketid,value FROM set_t WHERE set_t.metricid == :mid");
+        stmt.bind(":mid", mid.payload);
+        foreach (v; stmt.execute) {
+            auto bucket = this.get(BucketId(v.peek!long(0)));
+            coll.put(Set(bucket, Set.Value(v.peek!long(1))));
+        }
+        stmt.reset;
+
+        stmt = db.prepare(
+                "SELECT bucketid,change,sampleRate FROM counter_t WHERE counter_t.metricid == :mid");
+        stmt.bind(":mid", mid.payload);
+        foreach (v; stmt.execute) {
+            auto bucket = this.get(BucketId(v.peek!long(0)));
+            coll.put(Counter(bucket, Counter.Change(v.peek!long(1)),
+                    Counter.SampleRate(v.peek!double(2))));
+        }
+        stmt.reset;
+
+        stmt = db.prepare("SELECT bucketid,value FROM gauge_t WHERE gauge_t.metricid == :mid");
+        stmt.bind(":mid", mid.payload);
+        foreach (v; stmt.execute) {
+            auto bucket = this.get(BucketId(v.peek!long(0)));
+            coll.put(Gauge(bucket, Gauge.Value(v.peek!long(1))));
+        }
+        stmt.reset;
+
+        stmt = db.prepare("SELECT bucketid,elapsed_ms FROM timer_t WHERE timer_t.metricid == :mid");
+        stmt.bind(":mid", mid.payload);
+        foreach (v; stmt.execute) {
+            auto bucket = this.get(BucketId(v.peek!long(0)));
+            coll.put(Timer(bucket, Timer.Value(v.peek!long(1).dur!"msecs")));
+        }
+        stmt.reset;
+
+        return coll;
     }
 }
 
@@ -168,6 +262,8 @@ sqlDatabase initializeDB() {
 }
 
 void initializeTables(ref sqlDatabase db) {
+    // the timestamp shall be in UTC time.
+
     db.run("CREATE TABLE metric (
         id              INTEGER PRIMARY KEY,
         test_hostid     INTEGER,
@@ -189,6 +285,7 @@ void initializeTables(ref sqlDatabase db) {
         metricid    INTEGER NOT NULL,
         bucketid    INTEGER NOT NULL,
         change      INTEGER,
+        sampleRate  REAL,
         FOREIGN KEY(bucketid) REFERENCES plugin(id),
         FOREIGN KEY(metricid) REFERENCES metric(id)
         )");
@@ -219,4 +316,16 @@ void initializeTables(ref sqlDatabase db) {
         FOREIGN KEY(bucketid) REFERENCES plugin(id),
         FOREIGN KEY(metricid) REFERENCES metric(id)
         )");
+}
+
+SysTime fromSqLiteDateTime(string raw_dt) {
+    import core.time : dur;
+    import std.datetime : DateTime, UTC;
+    import std.format : formattedRead;
+
+    int year, month, day, hour, minute, second, msecs;
+    formattedRead(raw_dt, "%s-%s-%sT%s:%s:%s.%s", year, month, day, hour, minute, second, msecs);
+    auto dt = DateTime(year, month, day, hour, minute, second);
+
+    return SysTime(dt, msecs.dur!"msecs", UTC());
 }
