@@ -14,33 +14,29 @@ unittest {
     runCollect("rm -f metric_factory.sqlite3");
     runCollect("rm -f *.csv");
     runCollect(
-            "../build/metric_factory -d --run master --plugin-group builtin_db --output-to-db --host localhost");
+            "../build/metric_factory -d --run plugin_group --plugin-group builtin_db --output-to-db");
 
     immutable cmd = "sqlite3 metric_factory.sqlite3";
     auto res = runCollect(cmd ~ " .dump");
     writeln(res);
 
     res = runCollect(cmd ~ ` "SELECT count(*) FROM metric"`);
-    // shall be the global aggregate and localhost
-    assert(res.strip == "2");
+    assert(res.strip == "1");
 
     res = runCollect(cmd ~ ` "SELECT count(*) FROM bucket"`);
-    // the bucket name is shared
     assert(res.strip == "1");
 
     res = runCollect(cmd ~ ` "SELECT count(*) FROM test_host"`);
-    // the host name is shared
-    assert(res.strip == "1");
+    assert(res.strip == "0");
 
-    // all metric types have 2 entries, global aggregate and localhost.
     res = runCollect(cmd ~ ` "SELECT count(*) FROM counter_t"`);
-    assert(res.strip == "2");
+    assert(res.strip == "1");
     res = runCollect(cmd ~ ` "SELECT count(*) FROM gauge_t"`);
-    assert(res.strip == "2");
+    assert(res.strip == "1");
     res = runCollect(cmd ~ ` "SELECT count(*) FROM timer_t"`);
-    assert(res.strip == "2");
+    assert(res.strip == "1");
     res = runCollect(cmd ~ ` "SELECT count(*) FROM set_t"`);
-    assert(res.strip == "2");
+    assert(res.strip == "1");
 }
 
 // This test is dependent that the previous one has executed first
