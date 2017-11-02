@@ -13,7 +13,7 @@ import d2sqlite3 : sqlDatabase = Database;
 
 import metric_factory.metric.collector : Collector;
 import metric_factory.metric.types : TestHost;
-import metric_factory.types : Timestamp;
+import metric_factory.types : Timestamp, Path;
 import metric_factory.plugin : Plugin;
 
 struct MetricId {
@@ -65,8 +65,8 @@ struct Database {
     private sqlDatabase db;
     private immutable sql_find_bucket = "SELECT id FROM bucket WHERE name == :name";
 
-    static auto make() {
-        return Database(initializeDB);
+    static auto make(Path p) {
+        return Database(initializeDB(p));
     }
 
     /// Insert a Collector into the DB.
@@ -244,11 +244,14 @@ struct Database {
 
 private:
 
-sqlDatabase initializeDB() {
+sqlDatabase initializeDB(Path p) {
     import d2sqlite3;
 
+    if (p.length == 0)
+        p = Path("metric_factory.sqlite3");
+
     try {
-        auto db = sqlDatabase("metric_factory.sqlite3", SQLITE_OPEN_READWRITE);
+        auto db = sqlDatabase(p, SQLITE_OPEN_READWRITE);
         return db;
     }
     catch (Exception e) {
@@ -256,7 +259,7 @@ sqlDatabase initializeDB() {
         logger.trace("Initializing a new sqlite3 database");
     }
 
-    auto db = sqlDatabase("metric_factory.sqlite3", SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
+    auto db = sqlDatabase(p, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE);
     initializeTables(db);
     return db;
 }

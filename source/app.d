@@ -53,6 +53,7 @@ int main(string[] args) {
     OutputKind output_kind;
     TestHost[] test_hosts;
     string output_file;
+    string db_file;
     string[] plugin_group;
 
     std.getopt.GetoptResult help_info;
@@ -60,6 +61,7 @@ int main(string[] args) {
         // dfmt off
         help_info = std.getopt.getopt(args,
             "d|debug", "run in debug mode when logging", &debug_,
+            "db", "sqlite3 database to use", &db_file,
             "host", "host(s) to run the test suite on", &test_hosts,
             "run", "mode to run the tests in. Either standalone or from a remote collector "  ~ format("[%(%s|%)]", [EnumMembers!RunMode]), &run_mode,
             "plugin-id", "run the specific plugin with the ID", &plugin_id,
@@ -105,7 +107,7 @@ int main(string[] args) {
 
     Database db;
     try {
-        db = Database.make;
+        db = Database.make(Path(db_file));
     }
     catch (Exception e) {
         logger.error(e.msg);
