@@ -86,8 +86,8 @@ void measurePrograms(MetricValueStore coll) nothrow {
 
     // memory
     try {
-        auto res = runCollect(`ps aux --no-headers --sort -%mem`);
-        logger.trace(res);
+        auto res = runCollect(`ps aux --no-headers --sort -size`);
+        debug logger.trace(res);
         foreach (line; res.splitter(newline).take(top_n)) {
             auto cols = line.split;
             if (cols.length < 11)
@@ -101,10 +101,11 @@ void measurePrograms(MetricValueStore coll) nothrow {
 
             coll.put(Gauge(BucketName(format("user_mem_percentage_%s", user)),
                     Gauge.Value(mem_percentage)));
-            coll.put(Gauge(BucketName(format("user_mem_rss_byte_%s", user)), Gauge.Value(mem_rss)));
+            coll.put(Gauge(BucketName(format("user_mem_rss_kbyte_%s", user)),
+                    Gauge.Value(mem_rss)));
             coll.put(Gauge(BucketName(format("program_mem_percentage_%s",
                     cmd)), Gauge.Value(mem_percentage)));
-            coll.put(Gauge(BucketName(format("program_mem_rss_byte_%s", cmd)),
+            coll.put(Gauge(BucketName(format("program_mem_rss_kbyte_%s", cmd)),
                     Gauge.Value(mem_rss)));
         }
     }
