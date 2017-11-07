@@ -114,7 +114,8 @@ void measurePrograms(MetricValueStore coll) nothrow {
 
     // cpu
     try {
-        foreach (line; runCollect(`ps aux --no-headers --sort -%cpu`).splitter.take(top_n)) {
+        auto res = runCollect(`ps aux --no-headers --sort -pcpu`);
+        foreach (line; res.splitter(newline).take(top_n)) {
             auto cols = line.split;
             if (cols.length < 11)
                 break;
