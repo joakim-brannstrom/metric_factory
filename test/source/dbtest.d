@@ -23,16 +23,20 @@ unittest {
     res = runCollect(cmd ~ ` "SELECT count(*) FROM metric"`);
     assert(res.strip == "1");
 
+    // 3 because of the generic name and _min/_max suffixed
     res = runCollect(cmd ~ ` "SELECT count(*) FROM bucket"`);
-    assert(res.strip == "1");
+    assert(res.strip == "3");
 
     res = runCollect(cmd ~ ` "SELECT count(*) FROM test_host"`);
     assert(res.strip == "0");
 
     res = runCollect(cmd ~ ` "SELECT count(*) FROM counter_t"`);
     assert(res.strip == "1");
+
+    // 3 because of the basic gauge and _min/_max variant
     res = runCollect(cmd ~ ` "SELECT count(*) FROM gauge_t"`);
-    assert(res.strip == "1");
+    assert(res.strip == "3");
+
     res = runCollect(cmd ~ ` "SELECT count(*) FROM timer_t"`);
     assert(res.strip == "1");
     res = runCollect(cmd ~ ` "SELECT count(*) FROM set_t"`);

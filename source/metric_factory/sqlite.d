@@ -16,17 +16,17 @@ import metric_factory.metric.types : TestHost;
 import metric_factory.types : Timestamp, Path;
 import metric_factory.plugin : Plugin;
 
-struct MetricId {
+private struct MetricId {
     long payload;
     alias payload this;
 }
 
-struct BucketId {
+private struct BucketId {
     long payload;
     alias payload this;
 }
 
-struct TestHostId {
+private struct TestHostId {
     long payload;
     alias payload this;
 }
@@ -92,14 +92,22 @@ struct Database {
             stmt.reset;
         }
 
-        stmt = db.prepare(
-                "INSERT INTO gauge_t (metricid, bucketid, value) VALUES (:mid, :bid, :value)");
-        foreach (v; coll.gaugeRange) {
-            const long bucket_id = put(v.name);
-            stmt.bindAll(metric_id, bucket_id, v.value.payload);
-            stmt.execute;
-            stmt.reset;
+        string makeGauge(string range_t) {
+            import std.format : format;
+
+            return format(`stmt = db.prepare(
+                    "INSERT INTO gauge_t (metricid, bucketid, value) VALUES (:mid, :bid, :value)");
+            foreach (v; coll.%s) {
+                const long bucket_id = put(v.name);
+                stmt.bindAll(metric_id, bucket_id, v.value.payload);
+                stmt.execute;
+                stmt.reset;
+            }`, range_t);
         }
+
+        mixin(makeGauge("gaugeRange"));
+        mixin(makeGauge("maxRange"));
+        mixin(makeGauge("minRange"));
 
         stmt = db.prepare(
                 "INSERT INTO counter_t (metricid, bucketid, change, sampleRate) VALUES (:mid, :bid, :value, :sample_r)");
@@ -222,13 +230,20 @@ struct Database {
         }
         stmt.reset;
 
-        stmt = db.prepare("SELECT bucketid,value FROM gauge_t WHERE gauge_t.metricid == :mid");
-        stmt.bind(":mid", mid.payload);
-        foreach (v; stmt.execute) {
-            auto bucket = this.get(BucketId(v.peek!long(0)));
-            coll.put(Gauge(bucket, Gauge.Value(v.peek!long(1))));
+        string makeGauge(string kind) {
+            return format(`stmt = db.prepare("SELECT bucketid,value FROM gauge_t WHERE gauge_t.metricid == :mid");
+            stmt.bind(":mid", mid.payload);
+            foreach (v; stmt.execute) {
+                auto bucket = this.get(BucketId(v.peek!long(0)));
+                coll.put(%s(bucket, %s.Value(v.peek!long(1))));
+            }
+            stmt.reset;`,
+                    kind, kind);
         }
-        stmt.reset;
+
+        mixin(makeGauge("Gauge"));
+        mixin(makeGauge("Max"));
+        mixin(makeGauge("Min"));
 
         stmt = db.prepare("SELECT bucketid,elapsed_ms FROM timer_t WHERE timer_t.metricid == :mid");
         stmt.bind(":mid", mid.payload);

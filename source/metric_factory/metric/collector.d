@@ -20,6 +20,8 @@ interface MetricValueStore {
     void put(const Gauge a);
     void put(const Timer a);
     void put(const Set a);
+    void put(const Max a);
+    void put(const Min a);
 }
 
 final class HostCollector : MetricValueStore {
@@ -31,30 +33,38 @@ final class HostCollector : MetricValueStore {
         this.host = host;
     }
 
-    override void put(const Counter a) {
-        coll.put(a, host);
+    template Put(T) {
+        override void put(const T a) {
+            coll.put(a, host);
+        }
     }
 
-    override void put(const Gauge a) {
-        coll.put(a, host);
-    }
+    mixin Put!Gauge;
+    mixin Put!Min;
+    mixin Put!Max;
 
-    override void put(const Timer a) {
-        coll.put(a, host);
-    }
-
-    override void put(const Set a) {
-        coll.put(a, host);
-    }
+    mixin Put!Counter;
+    mixin Put!Timer;
+    mixin Put!Set;
 }
 
 final class Collector : MetricValueStore {
     import std.algorithm : map, joiner;
 
     Bucket!(Counter)[BucketName] counters;
-    Gauge[BucketName] gauges;
     Bucket!(Timer)[BucketName] timers;
     SetBucket[BucketName] sets;
+
+    template SimpleBucket(T, string name) {
+        import std.format : format;
+
+        mixin(T.stringof ~ "[BucketName] " ~ name ~ "s;");
+        mixin("auto " ~ name ~ "Range() { return " ~ name ~ "s.byValue; }");
+    }
+
+    mixin SimpleBucket!(Gauge, "gauge");
+    mixin SimpleBucket!(Max, "max");
+    mixin SimpleBucket!(Min, "min");
 
     auto timerRange() {
         return timers.byValue.map!(a => a.data).joiner;
@@ -62,10 +72,6 @@ final class Collector : MetricValueStore {
 
     auto counterRange() {
         return counters.byValue.map!(a => a.data).joiner;
-    }
-
-    auto gaugeRange() {
-        return gauges.byValue;
     }
 
     auto setRange() {
@@ -91,6 +97,30 @@ final class Collector : MetricValueStore {
             *v = a;
         } else {
             gauges[a.name] = a;
+        }
+    }
+
+    override void put(const Max a) {
+        debug logger.trace(a);
+
+        if (auto v = a.name in maxs) {
+            if (a.value > v.value) {
+                *v = a;
+            }
+        } else {
+            maxs[a.name] = a;
+        }
+    }
+
+    override void put(const Min a) {
+        debug logger.trace(a);
+
+        if (auto v = a.name in mins) {
+            if (a.value < v.value) {
+                *v = a;
+            }
+        } else {
+            mins[a.name] = a;
         }
     }
 
@@ -146,45 +176,26 @@ final class CollectorAggregate : MetricValueStore {
         globalAggregate = new Collector;
     }
 
-    override void put(const Counter a) {
-        globalAggregate.put(a);
+    static string makePut(string t) {
+        import std.format : format;
+
+        return format(q{override void put(const %s a) {
+            globalAggregate.put(a);
+        }
+
+        void put(const %s a, const TestHost host) {
+            put(host);
+            globalAggregate.put(a);
+            hostAggregate[host.toHash].put(a);
+        }}, t, t);
     }
 
-    override void put(const Gauge a) {
-        globalAggregate.put(a);
-    }
-
-    override void put(const Timer a) {
-        globalAggregate.put(a);
-    }
-
-    override void put(const Set a) {
-        globalAggregate.put(a);
-    }
-
-    void put(const Counter a, const TestHost host) {
-        put(host);
-        globalAggregate.put(a);
-        hostAggregate[host.toHash].put(a);
-    }
-
-    void put(const Gauge a, const TestHost host) {
-        put(host);
-        globalAggregate.put(a);
-        hostAggregate[host.toHash].put(a);
-    }
-
-    void put(const Timer a, const TestHost host) {
-        put(host);
-        globalAggregate.put(a);
-        hostAggregate[host.toHash].put(a);
-    }
-
-    void put(const Set a, const TestHost host) {
-        put(host);
-        globalAggregate.put(a);
-        hostAggregate[host.toHash].put(a);
-    }
+    mixin(makePut("Counter"));
+    mixin(makePut("Gauge"));
+    mixin(makePut("Max"));
+    mixin(makePut("Min"));
+    mixin(makePut("Timer"));
+    mixin(makePut("Set"));
 
     void put(const TestHost a) {
         if (a.toHash !in testHosts) {

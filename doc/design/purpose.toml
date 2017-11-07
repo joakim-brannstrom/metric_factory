@@ -182,16 +182,22 @@ How can it be assured it is cold?
 text = '''
 Gather statistics of the filesystem performance by creating and remove 10k files.
 
-The intention is to simulate "make all" and "make clean".
+The intention is to simulate the part of a compilation process that interact
+with the filesystem.
+
+The data that is written should be random as to avoid deduplication of blocks
+that can occur on a ZFS filesystem.
 '''
 
 [SPC-infrastructure_memory]
 partof = 'REQ-infrastructure-resource_usage'
 text = '''
-What should be measured when it comes to memory?
+The top 5 processes that uses memory (RSS) shall be measured.
+The total available physical memory shall be measured.
 
-Total available memory?
-Used? Free?
+This will help to find the worst offenders.
+
+Note: Should the total used memory be measured?
 '''
 
 [SPC-infrastructure_program]
