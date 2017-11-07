@@ -87,7 +87,7 @@ void measurePrograms(MetricValueStore coll) nothrow {
     // memory
     try {
         auto res = runCollect(`ps aux --no-headers --sort -size`);
-        debug logger.trace(res);
+        debug logger.tracef("%(%s\n%)", res.splitter(newline).take(top_n));
         foreach (line; res.splitter(newline).take(top_n)) {
             auto cols = line.split;
             if (cols.length < 11)
@@ -99,14 +99,12 @@ void measurePrograms(MetricValueStore coll) nothrow {
             auto mem_rss = cols[4].to!long;
             auto cmd = cols[10];
 
-            coll.put(Gauge(BucketName(format("user_mem_percentage_%s", user)),
-                    Gauge.Value(mem_percentage)));
-            coll.put(Gauge(BucketName(format("user_mem_rss_kbyte_%s", user)),
-                    Gauge.Value(mem_rss)));
-            coll.put(Gauge(BucketName(format("program_mem_percentage_%s",
-                    cmd)), Gauge.Value(mem_percentage)));
-            coll.put(Gauge(BucketName(format("program_mem_rss_kbyte_%s", cmd)),
-                    Gauge.Value(mem_rss)));
+            coll.put(Max(BucketName(format("user_mem_percentage_%s", user)),
+                    Max.Value(mem_percentage)));
+            coll.put(Max(BucketName(format("user_mem_rss_kbyte_%s", user)), Max.Value(mem_rss)));
+            coll.put(Max(BucketName(format("program_mem_percentage_%s", cmd)),
+                    Max.Value(mem_percentage)));
+            coll.put(Max(BucketName(format("program_mem_rss_kbyte_%s", cmd)), Max.Value(mem_rss)));
         }
     }
     catch (Exception e) {
@@ -116,6 +114,7 @@ void measurePrograms(MetricValueStore coll) nothrow {
     // cpu
     try {
         auto res = runCollect(`ps aux --no-headers --sort -pcpu`);
+        debug logger.tracef("%(%s\n%)", res.splitter(newline).take(top_n));
         foreach (line; res.splitter(newline).take(top_n)) {
             auto cols = line.split;
             if (cols.length < 11)
@@ -125,10 +124,10 @@ void measurePrograms(MetricValueStore coll) nothrow {
             auto cpu_percentage = cast(long) cols[2].to!double.round;
             auto cmd = cols[10];
 
-            coll.put(Gauge(BucketName(format("user_cpu_percentage_%s", user)),
-                    Gauge.Value(cpu_percentage)));
-            coll.put(Gauge(BucketName(format("program_cpu_percentage_%s",
-                    cmd)), Gauge.Value(cpu_percentage)));
+            coll.put(Max(BucketName(format("user_cpu_percentage_%s", user)),
+                    Max.Value(cpu_percentage)));
+            coll.put(Max(BucketName(format("program_cpu_percentage_%s", cmd)),
+                    Max.Value(cpu_percentage)));
         }
     }
     catch (Exception e) {
