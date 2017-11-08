@@ -243,6 +243,26 @@ StatsD will calculate the following values
     mean 558.25
 '''
 
+[SPC-concept-max]
+text = '''
+Max is a variant of gauge. It keeps the maximum value recored by the bucket.
+'''
+
+[SPC-concept-min]
+text = '''
+Min is a variant of gauge. It keeps the minimum value recored by the bucket.
+'''
+
+[TST-min_max_metric_type_in_csv]
+partof = 'SPC-concept-max'
+text = '''
+ - Expected result for the max values for [any,max,any < max].
+ - Expected result for the min values for [any,min,any>min].
+
+Note: The intention is to test that min/max gauge types behave different from
+gauges.
+'''
+
 [SPC-graphite]
 partof = 'SPC-concept'
 text = '''

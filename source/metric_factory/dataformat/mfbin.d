@@ -45,6 +45,14 @@ Set
 
 TestHost
     str32 name
+
+Max
+    str32 name
+    int64 value
+
+Min
+    str32 name
+    int64 value
 */
 module metric_factory.dataformat.mfbin;
 
@@ -67,11 +75,15 @@ void serialize(Writer)(scope Writer w, Collector coll) {
     import std.algorithm : map, joiner;
     import std.range.primitives : put;
 
-    foreach (a; coll.counters.byValue.map!(a => a.data).joiner)
+    foreach (a; coll.counterRange)
         serialize(w, a);
-    foreach (a; coll.gauges.byValue)
+    foreach (a; coll.gaugeRange)
         serialize(w, a);
-    foreach (a; coll.timers.byValue.map!(a => a.data).joiner)
+    foreach (a; coll.minRange)
+        serialize(w, a);
+    foreach (a; coll.maxRange)
+        serialize(w, a);
+    foreach (a; coll.timerRange)
         serialize(w, a);
 
     // serialize as a stream of Set.
@@ -142,7 +154,7 @@ void deserialize(T)(ubyte[] buf, T coll) {
             coll.put(demuxTimer(buf));
             break;
         case PacketKind.gauge:
-            coll.put(demuxGauge(buf));
+            coll.put(demuxGauge!Gauge(buf));
             break;
         case PacketKind.set:
             coll.put(demuxSet(buf));
@@ -150,6 +162,12 @@ void deserialize(T)(ubyte[] buf, T coll) {
         case PacketKind.testHost:
             // not supported mid stream. throwing away the value.
             demuxTestHost(buf);
+            break;
+        case PacketKind.gaugeMax:
+            coll.put(demuxGauge!Max(buf));
+            break;
+        case PacketKind.gaugeMin:
+            coll.put(demuxGauge!Min(buf));
             break;
         }
     }
@@ -162,6 +180,8 @@ enum PacketKind : ubyte {
     counterWithSampleRate,
     timer,
     gauge,
+    gaugeMax,
+    gaugeMin,
     set,
     testHost,
 }
@@ -192,10 +212,23 @@ void serialize(Writer)(scope Writer w, const Counter v) {
     }
 }
 
-void serialize(Writer)(scope Writer w, const Gauge v) {
+void serialize(Writer, T)(scope Writer w, const T v)
+        if (is(T == Gauge) || is(T == Max) || is(T == Min)) {
     import msgpack_ll;
 
-    mux(w, PacketKind.gauge);
+    PacketKind kind;
+
+    static if (is(T == Gauge)) {
+        kind = PacketKind.gauge;
+    } else static if (is(T == Max)) {
+        kind = PacketKind.gaugeMax;
+    } else static if (is(T == Min)) {
+        kind = PacketKind.gaugeMin;
+    } else {
+        static assert(0, "unsupported gauge subtype");
+    }
+
+    mux(w, kind);
     mux(w, v.name);
     mux!(MsgpackType.int64)(w, v.value);
 }
@@ -269,13 +302,13 @@ Timer demuxTimer(ref ubyte[] buf) {
     return Timer(name, ms);
 }
 
-Gauge demuxGauge(ref ubyte[] buf) {
+auto demuxGauge(KindT)(ref ubyte[] buf) {
     import msgpack_ll;
 
     auto name = BucketName(demux!string(buf));
-    auto v = Gauge.Value(demux!(MsgpackType.int64, long)(buf));
+    auto v = KindT.Value(demux!(MsgpackType.int64, long)(buf));
 
-    return Gauge(name, v);
+    return KindT(name, v);
 }
 
 Set demuxSet(ref ubyte[] buf) {
@@ -342,6 +375,8 @@ unittest {
     coll.put(Counter(BucketName("foo2"), Counter.Change(63), Counter.SampleRate(0.1)));
     // gauge
     coll.put(Gauge(BucketName("foo"), Gauge.Value(81)));
+    coll.put(Max(BucketName("foo"), Max.Value(81)));
+    coll.put(Min(BucketName("foo"), Min.Value(81)));
     // timer
     coll.put(Timer(BucketName("bar"), Timer.Value(1000.dur!"msecs")));
     // set
@@ -358,20 +393,21 @@ unittest {
     // Assert
 }
 
-@("shall gracefully ignore invalid data when deserializing")
+@("shall fail with an exception when invalid data is in the deserializing strea")
 unittest {
+    import std.exception : collectException;
     import std.array : appender;
     import metric_factory.dataformat.statsd : statdDeserialise = deserialize;
 
     auto coll = new Collector;
     auto app = appender!(ubyte[]);
-    //app.put(cast(ubyte) 0);
-    //statdDeserialise("foo1:75|c", coll);
-    //
-    //serialize(app, coll);
-    //
-    //auto coll_dec = new Collector;
-    //deserialize(app.data, coll_dec);
+    app.put(cast(ubyte) 0);
+    statdDeserialise("foo1:75|c", coll);
+
+    serialize(app, coll);
+
+    auto coll_dec = new Collector;
+    assert(collectException(deserialize(app.data, coll_dec)));
 }
 
 @("shall be a serialized/deserialized TestHost")

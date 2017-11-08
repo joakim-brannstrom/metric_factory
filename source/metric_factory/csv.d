@@ -86,4 +86,135 @@ void putCSV(Writer)(scope Writer w, const Timestamp raw_ts, HostResult res,
         index++;
         writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
     }
+
+    foreach (kv; res.sets.byKeyValue) {
+        index++;
+        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.count);
+    }
+}
+
+private:
+
+class Fixture {
+    import std.array : Appender;
+    import metric_factory.metric.collector;
+    import metric_factory.metric.types;
+
+    CollectorAggregate coll;
+    TestHost h;
+    BucketName b;
+    Appender!string app;
+
+    this() {
+        coll = new CollectorAggregate;
+        h = TestHost(TestHost.Value("test_host"));
+        b = BucketName("bucket");
+    }
+
+    void compare(string[] expected) {
+        import std.algorithm;
+        import std.range;
+
+        foreach (idx, line; app.data.splitter("\n").enumerate) {
+            assert(line == expected[idx], line ~ ":" ~ expected[idx]);
+        }
+    }
+}
+
+@("shall produce a CSV file with all results")
+unittest {
+    import std.datetime;
+    import metric_factory.metric.collector;
+    import metric_factory.metric.types;
+
+    // arrange
+    auto f = new Fixture;
+
+    f.coll.put(Timer(f.b, Timer.Value(42.dur!"msecs")), f.h);
+    f.coll.put(Gauge(f.b, Gauge.Value(43)), f.h);
+    f.coll.put(Set(f.b, Set.Value(44)), f.h);
+    f.coll.put(Counter(f.b, Counter.Change(45)), f.h);
+
+    auto res = process(f.coll);
+
+    // act
+    {
+        size_t idx;
+        putCSV(f.app, Timestamp(SysTime(0)), res.hostResult[f.h.toHash], idx, f.h.name);
+    }
+
+    // assert
+    // dfmt off
+    string[] expected = [
+        `"1","bucket","test_host","0001-01-01","01:12:12","","","42","42","42","42"`,
+        `"2","bucket","test_host","0001-01-01","01:12:12","","45"`,
+        `"3","bucket","test_host","0001-01-01","01:12:12","43"`,
+        `"4","bucket","test_host","0001-01-01","01:12:12","1"`,
+        ``];
+    // dfmt on
+
+    f.compare(expected);
+}
+
+// #TST-min_max_metric_type_in_csv
+@("shall produce a CSV file with the max result")
+unittest {
+    import std.datetime;
+    import metric_factory.metric.collector;
+    import metric_factory.metric.types;
+
+    // arrange
+    auto f = new Fixture;
+
+    f.coll.put(Max(f.b, Max.Value(46)), f.h);
+    f.coll.put(Max(f.b, Max.Value(47)), f.h);
+    f.coll.put(Max(f.b, Max.Value(42)), f.h);
+
+    auto res = process(f.coll);
+
+    // act
+    {
+        size_t idx;
+        putCSV(f.app, Timestamp(SysTime(0)), res.hostResult[f.h.toHash], idx, f.h.name);
+    }
+
+    // assert
+    // dfmt off
+    string[] expected = [
+        `"1","bucket","test_host","0001-01-01","01:12:12","47"`,
+        ``];
+    // dfmt on
+
+    f.compare(expected);
+}
+
+@("shall produce a CSV file with the min result")
+unittest {
+    import std.datetime;
+    import metric_factory.metric.collector;
+    import metric_factory.metric.types;
+
+    // arrange
+    auto f = new Fixture;
+
+    f.coll.put(Min(f.b, Min.Value(46)), f.h);
+    f.coll.put(Min(f.b, Min.Value(42)), f.h);
+    f.coll.put(Min(f.b, Min.Value(47)), f.h);
+
+    auto res = process(f.coll);
+
+    // act
+    {
+        size_t idx;
+        putCSV(f.app, Timestamp(SysTime(0)), res.hostResult[f.h.toHash], idx, f.h.name);
+    }
+
+    // assert
+    // dfmt off
+    string[] expected = [
+        `"1","bucket","test_host","0001-01-01","01:12:12","42"`,
+        ``];
+    // dfmt on
+
+    f.compare(expected);
 }

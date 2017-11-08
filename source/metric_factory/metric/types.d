@@ -117,7 +117,7 @@ struct Counter {
 }
 
 /// #SPC-concept-gauges
-struct Gauge {
+struct GaugeImpl(string kind) {
     struct Value {
         long payload;
         alias payload this;
@@ -139,6 +139,10 @@ struct Gauge {
         return value_;
     }
 }
+
+alias Gauge = GaugeImpl!("gauge");
+alias Max = GaugeImpl!("max");
+alias Min = GaugeImpl!("min");
 
 /// #SPC-concept-timers
 struct Timer {

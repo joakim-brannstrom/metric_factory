@@ -24,7 +24,13 @@ void testDatabase(MetricValueStore coll) nothrow {
         coll.put(Gauge(BucketName("metric_factory_test_db"), Gauge.Value(42)));
         coll.put(Counter(BucketName("metric_factory_test_db"), Counter.Change(42)));
         coll.put(Set(BucketName("metric_factory_test_db"), Set.Value(42)));
+        coll.put(Max(BucketName("metric_factory_test_db_max"), Max.Value(42)));
+        coll.put(Min(BucketName("metric_factory_test_db_min"), Min.Value(42)));
     }
     catch (Exception e) {
+        import std.exception;
+        import logger = std.experimental.logger;
+
+        collectException(logger.error(e.msg));
     }
 }
