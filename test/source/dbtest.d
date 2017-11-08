@@ -35,7 +35,7 @@ unittest {
 
     // 3 because of the basic gauge and _min/_max variant
     res = runCollect(cmd ~ ` "SELECT count(*) FROM gauge_t"`);
-    assert(res.strip == "3");
+    assert(res.strip == "5");
 
     res = runCollect(cmd ~ ` "SELECT count(*) FROM timer_t"`);
     assert(res.strip == "1");

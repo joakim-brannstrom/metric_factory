@@ -17,10 +17,16 @@ immutable Duration flushInterval = dur!"seconds"(10);
 
 interface MetricValueStore {
     void put(const Counter a);
-    void put(const Gauge a);
     void put(const Timer a);
     void put(const Set a);
+
+    /// Only the latest value.
+    void put(const Gauge a);
+
+    /// The maximum collected value over a flush interval. But note that the bucket is shared with gauge and min.
     void put(const Max a);
+
+    /// The minimum collected value over a flush interval. But note that the bucket is shared with gauge and max.
     void put(const Min a);
 }
 
@@ -299,9 +305,21 @@ HostResult process(Collector coll) {
         res.counters[kv.key] = r;
     }
 
+    import std.algorithm : each;
+
     res.gauges = coll.gauges;
-    foreach (kv; coll.gauges) {
-        debug logger.tracef("Gauge(%s, %s)", kv.name, kv.value);
+    foreach (v; coll.gauges) {
+        debug logger.tracef("Gauge(%s, %s)", v.name, v.value);
+    }
+
+    foreach (v; coll.maxs) {
+        res.gauges[v.name] = Gauge(v.name, Gauge.Value(v.value));
+        debug logger.tracef("Max(%s, %s)", v.name, v.value);
+    }
+
+    foreach (v; coll.mins) {
+        res.gauges[v.name] = Gauge(v.name, Gauge.Value(v.value));
+        debug logger.tracef("Min(%s, %s)", v.name, v.value);
     }
 
     foreach (kv; coll.sets.byKeyValue) {
