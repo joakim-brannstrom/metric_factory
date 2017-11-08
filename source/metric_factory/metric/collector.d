@@ -23,10 +23,14 @@ interface MetricValueStore {
     /// Only the latest value.
     void put(const Gauge a);
 
-    /// The maximum collected value over a flush interval. But note that the bucket is shared with gauge and min.
+    /** The maximum collected value over a flush interval. But note that the bucket is shared with gauge and min.
+     * #SPC-concept-max
+     */
     void put(const Max a);
 
-    /// The minimum collected value over a flush interval. But note that the bucket is shared with gauge and max.
+    /** The minimum collected value over a flush interval. But note that the bucket is shared with gauge and max.
+     * #SPC-concept-min
+     */
     void put(const Min a);
 }
 

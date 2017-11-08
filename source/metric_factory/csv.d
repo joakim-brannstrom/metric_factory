@@ -156,6 +156,7 @@ unittest {
     f.compare(expected);
 }
 
+// #TST-min_max_metric_type_in_csv
 @("shall produce a CSV file with the max result")
 unittest {
     import std.datetime;
