@@ -87,3 +87,49 @@ void putCSV(Writer)(scope Writer w, const Timestamp raw_ts, HostResult res,
         writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
     }
 }
+
+@("shall produce a CSV file with all results")
+unittest {
+    import core.time;
+    import std.datetime;
+    import std.array : appender;
+    import metric_factory.metric.collector;
+    import metric_factory.metric.types;
+
+    // arrange
+    auto coll = new CollectorAggregate;
+    auto h = TestHost(TestHost.Value("test_host"));
+    auto b = BucketName("bucket");
+
+    coll.put(Timer(b, Timer.Value(42.dur!"msecs")), h);
+    coll.put(Gauge(b, Gauge.Value(43)), h);
+    coll.put(Set(b, Set.Value(44)), h);
+    coll.put(Counter(b, Counter.Change(45)), h);
+    coll.put(Max(b, Max.Value(46)), h);
+    coll.put(Min(b, Min.Value(47)), h);
+
+    auto app = appender!(string)();
+    auto res = process(coll);
+
+    // act
+    {
+        size_t idx;
+        putCSV(app, Timestamp(SysTime(0)), res.hostResult[h.toHash], idx, h.name);
+    }
+
+    // assert
+    // dfmt off
+    string[] expected = [
+        `"1","bucket","test_host","0001-01-01","01:12:12","","","42","42","42","42"`,
+        `"2","bucket","test_host","0001-01-01","01:12:12","","45"`,
+        `"3","bucket","test_host","0001-01-01","01:12:12","43"`,
+        ``];
+    // dfmt on
+
+    import std.algorithm;
+    import std.range;
+
+    foreach (idx, line; app.data.splitter("\n").enumerate) {
+        assert(line == expected[idx], line ~ ":" ~ expected[idx]);
+    }
+}
