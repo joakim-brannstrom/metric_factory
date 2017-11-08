@@ -86,6 +86,12 @@ void putCSV(Writer)(scope Writer w, const Timestamp raw_ts, HostResult res,
         index++;
         writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.value);
     }
+
+    foreach (kv; res.sets.byKeyValue) {
+        index++;
+        writeCSV(w, index, kv.key, host, curr_d_txt, curr_t_txt, kv.value.count);
+    }
+}
 }
 
 @("shall produce a CSV file with all results")
