@@ -6,7 +6,6 @@ Author: Joakim Brännström (joakim.brannstrom@gmx.com)
 module metric_factory.plugin;
 
 public import metric_factory.metric;
-import std.array : Appender;
 import std.exception : collectException;
 import logger = std.experimental.logger;
 
@@ -14,18 +13,45 @@ import metric_factory.types : Path, DirPath;
 
 alias MetricFunc = void function(MetricValueStore) nothrow;
 
+struct Plugins {
+    Plugin[] registered;
+    alias registered this;
+
+    @disable this(this);
+
+    void put(Plugin p) nothrow {
+        registered ~= p;
+    }
+}
+
 struct Plugin {
+    enum Target {
+        allHost,
+        single,
+    }
+
+    enum Execute {
+        single,
+        parallel,
+    }
+
     string name;
-    MetricFunc func;
     string group;
+    MetricFunc func;
+    Target target;
+    Execute exec;
 }
 
 /// Use to build a plugin finishing with registering it.
 auto buildPlugin() {
     static struct BuildPlugin {
-        private string desc_;
-        private string group_;
-        private MetricFunc func_;
+        private {
+            string desc_;
+            string group_;
+            MetricFunc func_;
+            Plugin.Target target;
+            Plugin.Execute exec;
+        }
 
         auto description(string v) {
             desc_ = v;
@@ -42,43 +68,47 @@ auto buildPlugin() {
             return this;
         }
 
+        auto singleTarget() {
+            target = Plugin.Target.single;
+            return this;
+        }
+
+        auto parallelExecute() {
+            exec = Plugin.Execute.parallel;
+            return this;
+        }
+
         void register() {
-            registerPlugin(Plugin(desc_, func_, group_));
+            registerPlugin(Plugin(desc_, group_, func_, target, exec));
         }
     }
 
     return BuildPlugin();
 }
 
-void registerPlugin(Plugin f) {
+private void registerPlugin(Plugin f) {
     synchronized {
-        (cast(Appender!(Plugin[])) registered_plugins).put(f);
+        (cast(Plugins) registered_plugins).put(f);
     }
 }
 
 size_t registeredPlugins() nothrow @nogc {
-    return (cast(Appender!(Plugin[])) registered_plugins).data.length;
+    return (cast(Plugins) registered_plugins).length;
 }
 
 Plugin[] getPlugins() nothrow {
-    return (cast(Appender!(Plugin[])) registered_plugins).data;
+    return (cast(Plugins) registered_plugins);
 }
 
-Plugin[] getPlugins(string[] groups) nothrow {
-    import std.algorithm : canFind;
+Plugin[] getPlugins(const string[] groups) nothrow {
+    import std.array : array;
+    import std.algorithm : canFind, filter;
 
     if (groups.length == 0)
         return getPlugins();
 
-    Appender!(Plugin[]) rval;
-
-    auto all_p = (cast(Appender!(Plugin[])) registered_plugins).data;
-    foreach (ref p; all_p) {
-        if (groups.canFind(p.group))
-            rval.put(p);
-    }
-
-    return rval.data;
+    return (cast(Plugins) registered_plugins).registered.filter!(
+            a => groups.canFind(a.group)).array();
 }
 
 struct ShellScriptResult {
@@ -235,4 +265,4 @@ string hostname() nothrow {
 
 private:
 
-shared Appender!(Plugin[]) registered_plugins;
+shared Plugins registered_plugins;
