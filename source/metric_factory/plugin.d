@@ -90,6 +90,8 @@ struct ShellScriptResult {
 
 /** Run a shell script in a unique directory with cleanup.
  *
+ * This is NOT thread safe because it calls chdir.
+ *
  * Params:
  *  root = directory to create the unique directory in to run the script in.
  *  shell = shell to run as
