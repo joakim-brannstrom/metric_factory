@@ -149,6 +149,7 @@ ShellScriptResult runShellScript(DirPath root, string shell, string script) noth
         rval.cleanup = sw.peek.to!Duration;
     }
     catch (Exception e) {
+        collectException(logger.warning(e.msg));
     }
 
     return rval;
