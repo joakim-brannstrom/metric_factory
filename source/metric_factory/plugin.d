@@ -82,8 +82,10 @@ Plugin[] getPlugins(string[] groups) nothrow {
 }
 
 struct ShellScriptResult {
-    Duration script;
-    Duration cleanup;
+    import std.typecons : Nullable;
+
+    Nullable!Duration script;
+    Nullable!Duration cleanup;
 }
 
 /** Run a shell script in a unique directory with cleanup.
