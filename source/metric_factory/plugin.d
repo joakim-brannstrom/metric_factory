@@ -82,11 +82,15 @@ Plugin[] getPlugins(string[] groups) nothrow {
 }
 
 struct ShellScriptResult {
-    Duration script;
-    Duration cleanup;
+    import std.typecons : Nullable;
+
+    Nullable!Duration script;
+    Nullable!Duration cleanup;
 }
 
 /** Run a shell script in a unique directory with cleanup.
+ *
+ * This is NOT thread safe because it calls chdir.
  *
  * Params:
  *  root = directory to create the unique directory in to run the script in.
@@ -147,6 +151,7 @@ ShellScriptResult runShellScript(DirPath root, string shell, string script) noth
         rval.cleanup = sw.peek.to!Duration;
     }
     catch (Exception e) {
+        collectException(logger.warning(e.msg));
     }
 
     return rval;

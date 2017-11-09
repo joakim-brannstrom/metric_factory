@@ -231,6 +231,8 @@ struct Database {
         stmt.reset;
 
         string makeGauge(string kind) {
+            import std.format : format;
+
             return format(`stmt = db.prepare("SELECT bucketid,value FROM gauge_t WHERE gauge_t.metricid == :mid");
             stmt.bind(":mid", mid.payload);
             foreach (v; stmt.execute) {
