@@ -235,3 +235,16 @@ scp host:/tmp/<random>/result.dat results_XXXXX
 # summarise the results
 deserialise the collected datafiles to a master collection
 '''
+
+[SPC-execution_mode_for_plugins]
+partof = 'REQ-parallell_test_host_execution'
+text = '''
+The program shall support plugins to be tagged with an execution mode that
+determine *how* it is executed.
+
+Execution modes:
+ - allHost. Shall be executed on all test hosts.
+ - single. Shall only be executed once.
+
+allHost shall be the default execution mode.
+'''

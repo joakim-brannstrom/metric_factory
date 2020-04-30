@@ -207,6 +207,7 @@ struct Database {
 
     Collector get(MetricId mid) {
         import core.time : dur;
+        import std.format : format;
         import d2sqlite3;
         import metric_factory.metric.collector : Collector;
 

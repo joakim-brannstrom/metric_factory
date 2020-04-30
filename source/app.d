@@ -129,7 +129,7 @@ int main(string[] args) {
         standaloneMetrics(coll, plugin_group);
         break;
     case RunMode.remote:
-        standaloneMetrics(coll, plugin_group);
+        runRemoteMetrics(coll, plugin_group);
         break;
     case RunMode.master:
         runMetricSuiteOnTestHosts(coll, test_hosts, plugin_group);
@@ -192,6 +192,7 @@ void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts,
     import std.format : format;
     import std.random : uniform;
     import scriptlike;
+    import metric_factory.plugin;
 
     string result_dir;
 
@@ -224,6 +225,16 @@ void runMetricSuiteOnTestHosts(CollectorAggregate coll, TestHost[] test_hosts,
 
     string[] plugin_group_args = in_plugin_group.map!(a => ["--plugin-group",
             a.idup]).joiner.array();
+
+    foreach (p; getPlugins(in_plugin_group).filter!(a => Plugin.Target.single)) {
+        try {
+            logger.info("run plugin: ", p.name);
+            p.func(coll);
+        }
+        catch (Exception e) {
+            collectException(logger.warning(e.msg));
+        }
+    }
 
     foreach (host; test_hosts) {
         string rnd_hostdir;
@@ -298,6 +309,16 @@ void standaloneMetrics(CollectorAggregate coll, string[] plugin_group) {
     import metric_factory.plugin;
 
     foreach (p; getPlugins(plugin_group)) {
+        logger.info("run plugin: ", p.name);
+        p.func(coll);
+    }
+}
+
+void runRemoteMetrics(CollectorAggregate coll, string[] plugin_group) {
+    import std.algorithm : filter;
+    import metric_factory.plugin;
+
+    foreach (p; getPlugins(plugin_group).filter!(a => Plugin.Target.allHost)) {
         logger.info("run plugin: ", p.name);
         p.func(coll);
     }
